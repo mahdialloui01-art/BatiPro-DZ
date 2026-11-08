@@ -4,11 +4,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app/app_theme.dart';
 
 class _SaleProduct {
-  final String id, name, unit;
-  final double quantity, price;
-  const _SaleProduct(this.id,this.name,this.unit,this.quantity,this.price);
-  factory _SaleProduct.fromJson(Map<String,dynamic> j)=>_SaleProduct(j['id'],j['name'],j['unit'],(j['quantity'] as num).toDouble(),(j['salePrice'] as num).toDouble());
-  Map<String,dynamic> toJson()=>{'id':id,'name':name,'unit':unit,'quantity':quantity,'salePrice':price};
+  final Map<String,dynamic> raw;
+  final double quantity;
+  const _SaleProduct(this.raw,this.quantity);
+  String get id=>raw['id'] as String;
+  String get name=>raw['name'] as String;
+  String get unit=>raw['unit'] as String;
+  double get price=>(raw['salePrice'] as num).toDouble();
+  factory _SaleProduct.fromJson(Map<String,dynamic> j) {
+    final data=Map<String,dynamic>.from(j);
+    return _SaleProduct(data,(data['quantity'] as num).toDouble());
+  }
+  Map<String,dynamic> toJson()=>{...raw,'quantity':quantity};
 }
 class _SaleLine {
   final _SaleProduct product;
@@ -68,7 +75,7 @@ class _SalesScreenState extends State<SalesScreen> {
     final updated=< _SaleProduct >[];
     for(final p in products){
       final sold=invoice.items.where((e)=>e['productId']==p.id).fold<double>(0,(s,e)=>s+(e['quantity'] as num).toDouble());
-      updated.add(_SaleProduct(p.id,p.name,p.unit,p.quantity-sold,p.price));
+      updated.add(_SaleProduct(p.raw,p.quantity-sold));
     }
     setState(()=>products=updated);
     setState(()=>invoices.insert(0,invoice));
@@ -163,7 +170,7 @@ class _SaleEditorState extends State<_SaleEditor>{
       if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
       if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+cart[i].product.unit,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState(()=>cart.removeAt(i)),icon:const Icon(Icons.close,size:17))])])),
       const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:Text('الإجمالي: '+_money(_total),style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:BatiProTheme.ink))),
-      const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState(()=>method=v??'نقداً')),
+      const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
       const SizedBox(height:8),TextFormField(controller:paid,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المدفوع دج'),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
       const SizedBox(height:5),Text('المتبقي: '+_money((_total-_paid).clamp(0,double.infinity).toDouble()),style:const TextStyle(fontSize:12,color:BatiProTheme.red,fontWeight:FontWeight.bold)),
     ])))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('إلغاء')),FilledButton.icon(onPressed:_save,icon:const Icon(Icons.save_outlined),label:const Text('حفظ الفاتورة'))]);
