@@ -360,7 +360,6 @@ class _SectionScreenState extends State<SectionScreen> {
             Text(trailing, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
               onSelected: (value) {
                 if (value == 'edit') _openEditor(item);
                 if (value == 'delete') _delete(item);
