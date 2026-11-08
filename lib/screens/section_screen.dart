@@ -107,6 +107,22 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   @override
+  String _initialFieldValue(String key) {
+    final initial = widget.initial;
+    dynamic value;
+    if (key == 'quantity' && initial != null && initial['inputQuantity'] != null) {
+      value = initial['inputQuantity'];
+    } else if (initial != null) {
+      value = initial[key];
+    }
+    if (value != null) return value.toString();
+    if (key == 'paid') return '0';
+    if (key == 'inputUnit') return 'kg';
+    if (key == 'steelType') return 'حديد تسليح';
+    if (key == 'lengthM') return '12';
+    return '0';
+  }
+
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -659,7 +675,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     super.initState();
     _controllers = {
       for (final field in widget.fields)
-        field.key: TextEditingController(text: (field.key == 'quantity' && widget.initial?['inputQuantity'] != null ? widget.initial?['inputQuantity'] : widget.initial?[field.key])?.toString() ?? (field.key == 'paid' ? '0' : field.key == 'inputUnit' ? 'kg' : field.key == 'steelType' ? 'حديد تسليح' : field.key == 'lengthM' ? '12' : '0')),
+        field.key: TextEditingController(text: _initialFieldValue(field.key)),
     };
   }
 
