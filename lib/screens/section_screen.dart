@@ -32,7 +32,7 @@ class _SectionScreenState extends State<SectionScreen> {
       case 'purchases':
         return const [
           _FieldSpec('product', 'اسم المادة / المقاس'),
-          _FieldSpec('steelType', 'صنف الحديد', options: ['حديد تسليح', 'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت', 'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA', 'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد', 'فلات بار (حديد مسطح)', 'قضبان ملولبة', 'مسامير وبراغي', 'حديد آخر']),
+          _FieldSpec('steelType', 'نوع المادة', options: ['مواد عادية', 'حديد تسليح', 'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت', 'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA', 'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد', 'فلات بار (حديد مسطح)', 'قضبان ملولبة', 'مسامير وبراغي', 'حديد آخر']),
           _FieldSpec('supplier', 'المورد'),
           _FieldSpec('quantity', 'الكمية المشتراة', number: true),
           _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
@@ -224,20 +224,47 @@ class _SectionScreenState extends State<SectionScreen> {
       Map<String, dynamic> purchase, {Map<String, dynamic>? old}) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('batipro_inventory_v1');
-    if (raw == null) return;
-    final stock = (jsonDecode(raw) as List)
-        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final stock = raw == null
+        ? <Map<String, dynamic>>[]
+        : (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+    String normalize(String value) =>
+        value.trim().toLowerCase().replaceAll(RegExp(r'\\s+'), ' ');
 
     void adjust(String productName, double quantityDelta, double unitPrice,
-        {bool addCost = true}) {
-      final name = productName.trim().toLowerCase();
-      if (name.isEmpty || quantityDelta == 0) return;
-      final index = stock.indexWhere((p) =>
-          (p['name'] ?? '').toString().trim().toLowerCase() == name);
+        {bool addCost = true, Map<String, dynamic>? source}) {
+      final cleanName = productName.trim();
+      if (cleanName.isEmpty || quantityDelta == 0) return;
+      final normalizedName = normalize(cleanName);
+      var index = stock.indexWhere((p) =>
+          normalize((p['name'] ?? '').toString()) == normalizedName);
+
+      if (index < 0 && quantityDelta > 0) {
+        final isSteel = source != null &&
+            (source['steelType'] ?? 'مواد عادية').toString() != 'مواد عادية';
+        final unit = (source?['stockUnit'] ?? source?['inputUnit'] ?? 'وحدة').toString();
+        stock.insert(0, {
+          'id': DateTime.now().microsecondsSinceEpoch.toString(),
+          'name': cleanName,
+          'category': isSteel ? source['steelType'] : 'مواد البناء',
+          'unit': unit,
+          'quantity': quantityDelta,
+          'minimum': 0,
+          'purchasePrice': unitPrice,
+          'salePrice': 0,
+          'steelWeightKg': source?['weightKg'],
+          'pieceWeightKg': source?['pieceWeightKgCalculated'],
+          'diameterMm': source?['diameterMm'],
+          'lengthM': source?['lengthM'],
+        });
+        return;
+      }
       if (index < 0) return;
+
       final product = stock[index];
-      final currentQuantity = (product['quantity'] as num).toDouble();
-      final currentPrice = (product['purchasePrice'] as num).toDouble();
+      final currentQuantity = (product['quantity'] as num?)?.toDouble() ?? 0;
+      final currentPrice = (product['purchasePrice'] as num?)?.toDouble() ?? 0;
       if (quantityDelta > 0) {
         final nextQuantity = currentQuantity + quantityDelta;
         if (addCost && nextQuantity > 0) {
@@ -245,22 +272,35 @@ class _SectionScreenState extends State<SectionScreen> {
               ((currentQuantity * currentPrice) + (quantityDelta * unitPrice)) / nextQuantity;
         }
         product['quantity'] = nextQuantity;
-        if ((purchase['stockUnit'] ?? '').toString().isNotEmpty) product['unit'] = purchase['stockUnit'];
+        final unit = (source?['stockUnit'] ?? '').toString();
+        if (unit.isNotEmpty) product['unit'] = unit;
+        if (source != null) {
+          if (source['steelType'] != null &&
+              source['steelType'] != 'مواد عادية') {
+            product['category'] = source['steelType'];
+            product['steelWeightKg'] = source['weightKg'];
+            product['pieceWeightKg'] = source['pieceWeightKgCalculated'];
+            product['diameterMm'] = source['diameterMm'];
+            product['lengthM'] = source['lengthM'];
+          }
+        }
       } else {
-        final nextQuantity = (currentQuantity + quantityDelta).clamp(0, double.infinity).toDouble();
-        product['quantity'] = nextQuantity;
+        product['quantity'] =
+            (currentQuantity + quantityDelta).clamp(0, double.infinity).toDouble();
       }
     }
 
     if (old != null) {
       adjust((old['product'] ?? '').toString(),
           -((old['quantity'] as num?)?.toDouble() ?? 0),
-          (old['stockUnitPrice'] as num?)?.toDouble() ?? (old['unitPrice'] as num?)?.toDouble() ?? 0,
-          addCost: false);
+          (old['stockUnitPrice'] as num?)?.toDouble() ??
+              (old['unitPrice'] as num?)?.toDouble() ?? 0);
     }
     adjust((purchase['product'] ?? '').toString(),
         (purchase['quantity'] as num?)?.toDouble() ?? 0,
-        (purchase['stockUnitPrice'] as num?)?.toDouble() ?? (purchase['unitPrice'] as num?)?.toDouble() ?? 0);
+        (purchase['stockUnitPrice'] as num?)?.toDouble() ??
+            (purchase['unitPrice'] as num?)?.toDouble() ?? 0,
+        source: purchase);
     await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
   }
 
@@ -665,7 +705,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (value != null) return value.toString();
     if (key == 'paid') return '0';
     if (key == 'inputUnit') return 'kg';
-    if (key == 'steelType') return 'حديد تسليح';
+    if (key == 'steelType') return 'مواد عادية';
     if (key == 'lengthM') return '12';
     if (key == 'diameterMm') return '12';
     return '0';
@@ -699,11 +739,10 @@ class _EntryEditorState extends State<_EntryEditor> {
       final enteredQuantity = (result['quantity'] as num).toDouble();
       final price = (result['unitPrice'] as num).toDouble();
       final paid = (result['paid'] as num).toDouble();
-      final productName = (result['product'] ?? '').toString().toLowerCase();
+      final steelType = (result['steelType'] ?? 'مواد عادية').toString();
+      final iron = steelType != 'مواد عادية';
       final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
       final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
-      final steelType = (result['steelType'] ?? '').toString();
-      final iron = steelType.isNotEmpty || productName.contains('حديد') || productName.contains('steel') || productName.contains('acier') || productName.contains('فولاذ') || diameter > 0 || manualWeight > 0;
       final unit = (result['inputUnit'] ?? 'kg').toString().trim().toLowerCase();
       if (unit != 'kg' && unit != 'ton') {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
