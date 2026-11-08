@@ -6,7 +6,8 @@ import '../app/app_theme.dart';
 class _FieldSpec {
   final String key, label;
   final bool number, optional;
-  const _FieldSpec(this.key, this.label, {this.number = false, this.optional = false});
+  final List<String> options;
+  const _FieldSpec(this.key, this.label, {this.number = false, this.optional = false, this.options = const []});
 }
 
 class SectionScreen extends StatefulWidget {
@@ -30,13 +31,14 @@ class _SectionScreenState extends State<SectionScreen> {
     switch (_kind) {
       case 'purchases':
         return const [
-          _FieldSpec('product', 'اسم المادة'),
+          _FieldSpec('product', 'اسم المادة / المقاس'),
+          _FieldSpec('steelType', 'صنف الحديد', options: ['حديد تسليح', 'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت', 'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA', 'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد', 'فلات بار (حديد مسطح)', 'قضبان ملولبة', 'مسامير وبراغي', 'حديد آخر']),
           _FieldSpec('supplier', 'المورد'),
           _FieldSpec('quantity', 'الكمية المشتراة', number: true),
           _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
-          _FieldSpec('diameterMm', 'قطر حديد التسليح (مم) — 0 للأنواع الأخرى', number: true, optional: true),
-          _FieldSpec('lengthM', 'طول القضيب بالمتر (افتراضي 12)', number: true, optional: true),
-          _FieldSpec('pieceWeightKg', 'وزن القطعة بالكغ للحديد غير الدائري', number: true, optional: true),
+          _FieldSpec('diameterMm', 'القطر بالملم (للتسليح والدائري المصمت)', number: true, optional: true),
+          _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
+          _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
           _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
           _FieldSpec('paid', 'المبلغ المدفوع (دج)', number: true),
           _FieldSpec('reference', 'رقم وصل الشراء'),
@@ -659,7 +661,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     super.initState();
     _controllers = {
       for (final field in widget.fields)
-        field.key: TextEditingController(text: (field.key == 'quantity' && widget.initial?['inputQuantity'] != null ? widget.initial?['inputQuantity'] : widget.initial?[field.key])?.toString() ?? (field.key == 'paid' ? '0' : field.key == 'inputUnit' ? 'kg' : field.key == 'lengthM' ? '12' : '0')),
+        field.key: TextEditingController(text: (field.key == 'quantity' && widget.initial?['inputQuantity'] != null ? widget.initial?['inputQuantity'] : widget.initial?[field.key])?.toString() ?? (field.key == 'paid' ? '0' : field.key == 'inputUnit' ? 'kg' : field.key == 'steelType' ? 'حديد تسليح' : field.key == 'lengthM' ? '12' : '0')),
     };
   }
 
@@ -685,7 +687,8 @@ class _EntryEditorState extends State<_EntryEditor> {
       final productName = (result['product'] ?? '').toString().toLowerCase();
       final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
       final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
-      final iron = productName.contains('حديد') || productName.contains('steel') || productName.contains('acier') || productName.contains('فولاذ') || diameter > 0 || manualWeight > 0;
+      final steelType = (result['steelType'] ?? '').toString();
+      final iron = steelType.isNotEmpty || productName.contains('حديد') || productName.contains('steel') || productName.contains('acier') || productName.contains('فولاذ') || diameter > 0 || manualWeight > 0;
       final unit = (result['inputUnit'] ?? 'kg').toString().trim().toLowerCase();
       if (unit != 'kg' && unit != 'ton') {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
@@ -698,7 +701,8 @@ class _EntryEditorState extends State<_EntryEditor> {
       if (iron) {
         final weightKg = enteredQuantity * (unit == 'ton' ? 1000 : 1);
         final length = (result['lengthM'] as num?)?.toDouble() ?? 12;
-        final pieceWeight = diameter > 0 ? (diameter * diameter / 162) * length : manualWeight;
+        final roundSolid = steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت';
+        final pieceWeight = roundSolid && diameter > 0 ? (diameter * diameter / 162) * length : manualWeight;
         if (pieceWeight <= 0 || !pieceWeight.isFinite || length <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('للحديد: أدخل قطر القضيب، أو وزن القطعة بالكيلوغرام للأنواع الأخرى.')));
           return;
@@ -710,7 +714,7 @@ class _EntryEditorState extends State<_EntryEditor> {
         result['quantity'] = pieces;
         result['stockUnitPrice'] = total / pieces;
         result['unitPrice'] = price;
-        result['stockUnit'] = 'قضيب';
+        result['stockUnit'] = (steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت' || steelType == 'حديد مربع أو مستطيل مصمت') ? 'قضيب' : 'قطعة';
       } else {
         result['quantity'] = enteredQuantity;
         result['stockUnitPrice'] = price;
@@ -735,20 +739,33 @@ class _EntryEditorState extends State<_EntryEditor> {
             for (final field in widget.fields)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: TextFormField(
-                  controller: _controllers[field.key],
-                  keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-                  decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'مثال: 8 أو 10 أو 12 أو 14 أو 16 أو 20 أو 25 أو 32' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
-                  validator: (value) {
-                    if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
-                    if (field.optional && (value == null || value.trim().isEmpty)) return null;
-                    if (field.number && value.trim().isNotEmpty) {
-                      final n = double.tryParse(value.trim().replaceAll(',', '.'));
-                      if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
-                    }
-                    return null;
-                  },
-                ),
+                child: field.options.isNotEmpty
+                    ? DropdownButtonFormField<String>(
+                        value: field.options.contains(_controllers[field.key]!.text)
+                            ? _controllers[field.key]!.text : field.options.first,
+                        isExpanded: true,
+                        decoration: InputDecoration(labelText: field.label),
+                        items: field.options.map((option) => DropdownMenuItem<String>(
+                          value: option, child: Text(option, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (value) {
+                          if (value != null) _controllers[field.key]!.text = value;
+                        },
+                      )
+                    : TextFormField(
+                        controller: _controllers[field.key],
+                        keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                        decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'مثال: 8 أو 10 أو 12 أو 14 أو 16 أو 20 أو 25 أو 32' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
+                        validator: (value) {
+                          if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
+                          if (field.optional && (value == null || value.trim().isEmpty)) return null;
+                          if (field.number && value.trim().isNotEmpty) {
+                            final n = double.tryParse(value.trim().replaceAll(',', '.'));
+                            if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
+                          }
+                          return null;
+                        },
+                      ),
               ),
           ]),
         ),
