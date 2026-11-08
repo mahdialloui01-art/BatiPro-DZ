@@ -36,7 +36,7 @@ class _AppShellState extends State<AppShell> {
     _NavItem('لوحة القيادة', Icons.grid_view_rounded),
     _NavItem('المنتجات والمخزون', Icons.inventory_2_outlined),
     _NavItem('المبيعات والفواتير', Icons.point_of_sale_rounded),
-    _NavItem('المشتريات', Icons.shopping_bag_outlined),
+    _NavItem('الشراء من المورد', Icons.shopping_cart_checkout_rounded),
     _NavItem('الزبائن', Icons.groups_2_outlined),
     _NavItem('الموردون', Icons.local_shipping_outlined),
     _NavItem('المستودعات', Icons.warehouse_outlined),
@@ -68,9 +68,9 @@ class _AppShellState extends State<AppShell> {
           ],
         ),
         bottomNavigationBar: wide ? null : NavigationBar(
-          selectedIndex: selected > 3 ? 0 : selected,
+          selectedIndex: selected > 3 ? 4 : selected,
           onDestinationSelected: (i) {
-            if (i == 3) {
+            if (i == 4) {
               showModalBottomSheet<void>(
                 context: context,
                 showDragHandle: true,
@@ -91,6 +91,7 @@ class _AppShellState extends State<AppShell> {
             NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
             NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'المخزون'),
             NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: 'المبيعات'),
+            NavigationDestination(icon: Icon(Icons.shopping_cart_checkout_rounded), label: 'المشتريات'),
             NavigationDestination(icon: Icon(Icons.menu_rounded), label: 'المزيد'),
           ],
         ),
@@ -197,7 +198,7 @@ class _MoreSectionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final groups = <({String title, String subtitle, List<int> indexes})>[
-      (title: 'العمليات التجارية', subtitle: 'تابع حركة تجارتك اليومية', indexes: [3, 7]),
+      (title: 'البيع والشراء', subtitle: 'فواتير البيع وشراء السلع من الموردين', indexes: [3, 7]),
       (title: 'العلاقات التجارية', subtitle: 'إدارة الأشخاص المتعاملين معك', indexes: [4, 5]),
       (title: 'التنظيم والتحليل', subtitle: 'رتّب العمل وراقب النتائج', indexes: [6, 8, 9]),
     ];
