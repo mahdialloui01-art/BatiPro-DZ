@@ -22,6 +22,132 @@ class InventoryScreen extends StatefulWidget {
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
+
+class _ProductEditorDialog extends StatefulWidget {
+  final _Product? product;
+  const _ProductEditorDialog({this.product});
+
+  @override
+  State<_ProductEditorDialog> createState() => _ProductEditorDialogState();
+}
+
+class _ProductEditorDialogState extends State<_ProductEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _category;
+  late final TextEditingController _unit;
+  late final TextEditingController _quantity;
+  late final TextEditingController _minimum;
+  late final TextEditingController _purchasePrice;
+  late final TextEditingController _salePrice;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.product;
+    _name = TextEditingController(text: p?.name ?? '');
+    _category = TextEditingController(text: p?.category ?? 'مواد البناء');
+    _unit = TextEditingController(text: p?.unit ?? 'وحدة');
+    _quantity = TextEditingController(text: p?.quantity.toString() ?? '0');
+    _minimum = TextEditingController(text: p?.minimum.toString() ?? '5');
+    _purchasePrice = TextEditingController(text: p?.purchasePrice.toString() ?? '0');
+    _salePrice = TextEditingController(text: p?.salePrice.toString() ?? '0');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _category.dispose();
+    _unit.dispose();
+    _quantity.dispose();
+    _minimum.dispose();
+    _purchasePrice.dispose();
+    _salePrice.dispose();
+    super.dispose();
+  }
+
+  double _number(TextEditingController c) =>
+      double.parse(c.text.trim().replaceAll(',', '.'));
+
+  Widget _field(TextEditingController controller, String label, {bool numeric = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: numeric
+            ? const TextInputType.numberWithOptions(decimal: true)
+            : TextInputType.text,
+        decoration: InputDecoration(labelText: label),
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
+          if (numeric) {
+            final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
+            if (parsed == null || !parsed.isFinite || parsed < 0) {
+              return 'أدخل رقماً صحيحاً';
+            }
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final p = widget.product;
+    Navigator.of(context).pop(_Product(
+      id: p?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      name: _name.text.trim(),
+      category: _category.text.trim(),
+      unit: _unit.text.trim(),
+      quantity: _number(_quantity),
+      minimum: _number(_minimum),
+      purchasePrice: _number(_purchasePrice),
+      salePrice: _number(_salePrice),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.product == null ? 'إضافة منتج' : 'تعديل المنتج'),
+      content: SizedBox(
+        width: 440,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _field(_name, 'اسم المنتج'),
+                _field(_category, 'الصنف'),
+                _field(_unit, 'وحدة القياس'),
+                Row(children: [
+                  Expanded(child: _field(_quantity, 'الكمية', numeric: true)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
+                ]),
+                Row(children: [
+                  Expanded(child: _field(_purchasePrice, 'سعر الشراء', numeric: true)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _field(_salePrice, 'سعر البيع', numeric: true)),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('حفظ')),
+      ],
+    );
+  }
+}
+
 class _InventoryScreenState extends State<InventoryScreen> {
   static const _storageKey = 'batipro_inventory_v1';
   final _search = TextEditingController();
@@ -68,43 +194,35 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   String _money(double n) => '${n.toStringAsFixed(n == n.roundToDouble() ? 0 : 2)} دج';
   Future<void> _edit([_Product? old]) async {
-    final name = TextEditingController(text: old?.name ?? '');
-    final category = TextEditingController(text: old?.category ?? 'مواد البناء');
-    final unit = TextEditingController(text: old?.unit ?? 'وحدة');
-    final qty = TextEditingController(text: old?.quantity.toString() ?? '0');
-    final min = TextEditingController(text: old?.minimum.toString() ?? '5');
-    final buy = TextEditingController(text: old?.purchasePrice.toString() ?? '0');
-    final sell = TextEditingController(text: old?.salePrice.toString() ?? '0');
-    final formKey = GlobalKey<FormState>();
-    final result = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: Text(old == null ? 'إضافة منتج' : 'تعديل المنتج'),
-      content: SizedBox(width: 440, child: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _field(name,'اسم المنتج'), _field(category,'الصنف'), _field(unit,'وحدة القياس'),
-        Row(children:[Expanded(child:_field(qty,'الكمية',numeric:true)),const SizedBox(width:8),Expanded(child:_field(min,'حد التنبيه',numeric:true))]),
-        Row(children:[Expanded(child:_field(buy,'سعر الشراء',numeric:true)),const SizedBox(width:8),Expanded(child:_field(sell,'سعر البيع',numeric:true))]),
-      ])))),
-      actions: [
-        TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),
-        FilledButton(onPressed:(){if(formKey.currentState!.validate()) Navigator.pop(ctx,true);},child:const Text('حفظ')),
-      ],
-    ));
-    if (result == true) {
-      final p = _Product(id:old?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),name:name.text.trim(),category:category.text.trim(),unit:unit.text.trim(),
-        quantity:double.parse(qty.text.replaceAll(',','.')),minimum:double.parse(min.text.replaceAll(',','.')),purchasePrice:double.parse(buy.text.replaceAll(',','.')),salePrice:double.parse(sell.text.replaceAll(',','.')));
-      setState(() { if(old==null){_products.insert(0,p);}else{_products[_products.indexWhere((e)=>e.id==old.id)]=p;} });
-      await _save();
-    }
-    for(final c in [name,category,unit,qty,min,buy,sell]) { c.dispose(); }
+    final result = await showDialog<_Product>(
+      context: context,
+      builder: (_) => _ProductEditorDialog(product: old),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      final index = _products.indexWhere((e) => e.id == result.id);
+      if (index < 0) {
+        _products.insert(0, result);
+      } else {
+        _products[index] = result;
+      }
+    });
+    await _save();
   }
 
-  Widget _field(TextEditingController c,String label,{bool numeric=false}) => Padding(
-    padding: const EdgeInsets.only(bottom:10),
-    child: TextFormField(controller:c,keyboardType:numeric?const TextInputType.numberWithOptions(decimal:true):TextInputType.text,
-      decoration:InputDecoration(labelText:label),validator:(v){
-        if(v==null||v.trim().isEmpty)return 'هذا الحقل مطلوب';
-        if(numeric && (double.tryParse(v.replaceAll(',','.'))==null || double.parse(v.replaceAll(',','.'))<0))return 'أدخل رقماً صحيحاً';
+  Widget _field(TextEditingController c, String label, {bool numeric = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: TextFormField(
+      controller: c,
+      keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      decoration: InputDecoration(labelText: label),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) return 'هذا الحقل مطلوب';
+        final parsed = numeric ? double.tryParse(v.replaceAll(',', '.')) : null;
+        if (numeric && (parsed == null || !parsed.isFinite || parsed < 0)) return 'أدخل رقماً صحيحاً';
         return null;
-      }),
+      },
+    ),
   );
 
   Future<void> _delete(_Product p) async {
