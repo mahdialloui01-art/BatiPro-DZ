@@ -6,14 +6,19 @@ import '../app/app_theme.dart';
 class _Product {
   final String id, name, category, unit;
   final double quantity, minimum, purchasePrice, salePrice;
-  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice});
+  final double? steelWeightKg, pieceWeightKg, diameterMm, lengthM;
+  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice, this.steelWeightKg, this.pieceWeightKg, this.diameterMm, this.lengthM});
   factory _Product.fromJson(Map<String, dynamic> j) => _Product(
     id: j['id'] as String, name: j['name'] as String, category: j['category'] as String,
     unit: j['unit'] as String, quantity: (j['quantity'] as num).toDouble(),
     minimum: (j['minimum'] as num).toDouble(), purchasePrice: (j['purchasePrice'] as num).toDouble(),
     salePrice: (j['salePrice'] as num).toDouble(),
+    steelWeightKg: (j['steelWeightKg'] as num?)?.toDouble(),
+    pieceWeightKg: (j['pieceWeightKg'] as num?)?.toDouble(),
+    diameterMm: (j['diameterMm'] as num?)?.toDouble(),
+    lengthM: (j['lengthM'] as num?)?.toDouble(),
   );
-  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice};
+  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice,'steelWeightKg':steelWeightKg,'pieceWeightKg':pieceWeightKg,'diameterMm':diameterMm,'lengthM':lengthM};
 }
 
 class InventoryScreen extends StatefulWidget {
@@ -65,10 +70,10 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     _minimum = TextEditingController(text: p?.minimum.toString() ?? '5');
     _purchasePrice = TextEditingController(text: p?.purchasePrice.toString() ?? '0');
     _salePrice = TextEditingController(text: p?.salePrice.toString() ?? '0');
-    _weight = TextEditingController(text: p == null ? '0' : p.quantity.toString());
-    _diameter = TextEditingController(text: '12');
-    _length = TextEditingController(text: '12');
-    _pieceWeight = TextEditingController(text: '');
+    _weight = TextEditingController(text: p?.steelWeightKg?.toString() ?? '0');
+    _diameter = TextEditingController(text: p?.diameterMm?.toString() ?? '12');
+    _length = TextEditingController(text: p?.lengthM?.toString() ?? '12');
+    _pieceWeight = TextEditingController(text: p?.pieceWeightKg?.toString() ?? '');
     _weightUnit = 'kg';
   }
 
@@ -148,6 +153,12 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       minimum: _isSteel ? _number(_minimum) : _number(_minimum),
       purchasePrice: _number(_purchasePrice),
       salePrice: _number(_salePrice),
+      steelWeightKg: _isSteel ? _number(_weight) * (_weightUnit == 'ton' ? 1000 : 1) : null,
+      pieceWeightKg: _isSteel ? (_usesDiameter
+          ? (3.141592653589793 / 4) * (_number(_diameter) / 1000) * (_number(_diameter) / 1000) * _number(_length) * 7850
+          : _number(_pieceWeight)) : null,
+      diameterMm: _isSteel && _usesDiameter ? _number(_diameter) : null,
+      lengthM: _isSteel ? _number(_length) : null,
     ));
   }
 
