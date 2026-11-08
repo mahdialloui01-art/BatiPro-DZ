@@ -85,12 +85,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ])))),
       actions: [
         TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),
-        FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ')),
+        FilledButton(onPressed:(){if(formKey.currentState!.validate()) Navigator.pop(ctx,true);},child:const Text('حفظ')),
       ],
     ));
-    if (result == true && formKey.currentState!.validate()) {
+    if (result == true) {
       final p = _Product(id:old?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),name:name.text.trim(),category:category.text.trim(),unit:unit.text.trim(),
-        quantity:double.parse(qty.text),minimum:double.parse(min.text),purchasePrice:double.parse(buy.text),salePrice:double.parse(sell.text));
+        quantity:double.parse(qty.text.replaceAll(',','.')),minimum:double.parse(min.text.replaceAll(',','.')),purchasePrice:double.parse(buy.text.replaceAll(',','.')),salePrice:double.parse(sell.text.replaceAll(',','.')));
       setState(() { if(old==null){_products.insert(0,p);}else{_products[_products.indexWhere((e)=>e.id==old.id)]=p;} });
       await _save();
     }
