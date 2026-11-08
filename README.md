@@ -1,20 +1,41 @@
 # BatiPro DZ
 
-Cross-platform construction materials management system for Algeria.
+واجهة أولية لنظام تسيير محلات ومستودعات مواد البناء في الجزائر، تستهدف Windows وAndroid بقاعدة تقنية Flutter واحدة.
 
-## Targets
-- Windows desktop
-- Android
+## التقنية
+- Flutter / Dart
+- تصميم عربي RTL ومتجاوب مع الشاشات الكبيرة والصغيرة
+- عمل دون إنترنت مستهدف في بنية التطبيق
+- SQLite والمزامنة السحابية ضمن المراحل القادمة
 
-## Stack
-- Flutter
-- SQLite (offline-first)
-- Arabic RTL interface with French-ready localization
-
-## Run
+## تشغيل المشروع
 ```bash
 flutter pub get
 flutter run
 ```
 
-The first milestone focuses on the responsive management interface and navigation. Business workflows and persistent storage will be added in subsequent milestones.
+لتشغيل نسخة الكمبيوتر:
+```bash
+flutter run -d windows
+```
+
+## الموجود حالياً
+- هوية BatiPro DZ ونظام ألوان موحد
+- قائمة جانبية لسطح المكتب
+- تنقل سفلي وقائمة أقسام للهاتف
+- لوحة قيادة أولية ببطاقات المؤشرات ومخطط مبيعات تجريبي وتنبيهات مخزون
+- هياكل أولية لأقسام المنتجات والمخزون والمبيعات والمشتريات والزبائن والموردين والمستودعات والمصاريف والتقارير والإعدادات
+
+> ملاحظة: الأرقام المعروضة في لوحة القيادة تجريبية للتصميم فقط. لم يتم بعد ربط قاعدة بيانات أو تفعيل عمليات البيع والشراء والمحاسبة.
+
+## خطة العمل
+1. إكمال واجهات المنتجات والوحدات والتحويل بين الوحدات.
+2. بناء قاعدة SQLite وترحيل البيانات.
+3. تفعيل المشتريات والمبيعات والفواتير والديون.
+4. التقارير والطباعة والباركود والنسخ الاحتياطي.
+5. مزامنة عدة أجهزة وإصدارات Windows وAndroid.
+
+## هيكل المجلدات
+- `lib/app`: إعداد التطبيق والثيم والتنقل.
+- `lib/screens`: شاشات التطبيق.
+- `lib/widgets`: مكونات واجهة قابلة لإعادة الاستخدام.
