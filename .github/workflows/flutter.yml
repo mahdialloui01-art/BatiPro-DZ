@@ -49,7 +49,8 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_2
-          script: adb install build/app/outputs/flutter-apk/app-release.apk && PACKAGE="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)/aapt" && PACKAGE="$("$PACKAGE" dump badging build/app/outputs/flutter-apk/app-release.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)" && test -n "$PACKAGE" && echo "Installed package: $PACKAGE" && adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 && sleep 5 && adb shell pidof "$PACKAGE"
+          script: |
+            adb install build/app/outputs/flutter-apk/app-release.apk && PACKAGE="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)/aapt" && PACKAGE="$("$PACKAGE" dump badging build/app/outputs/flutter-apk/app-release.apk | awk -F"'" '/^package: name=/{print $2; exit}')" && test -n "$PACKAGE" && echo "Installed package: $PACKAGE" && adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 && sleep 5 && adb shell pidof "$PACKAGE"
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
