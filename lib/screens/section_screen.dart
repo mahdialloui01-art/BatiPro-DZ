@@ -117,6 +117,29 @@ class _SectionScreenState extends State<SectionScreen> {
         _items = [];
       }
     }
+    if (_kind == 'customers' || _kind == 'suppliers') {
+      final ledgerKey = _kind == 'customers' ? 'batipro_sales_v1' : 'batipro_purchases_v1';
+      final ledgerRaw = prefs.getString(ledgerKey);
+      final balances = <String, double>{};
+      if (ledgerRaw != null) {
+        try {
+          for (final entry in jsonDecode(ledgerRaw) as List) {
+            final row = Map<String, dynamic>.from(entry as Map);
+            final name = (_kind == 'customers' ? row['client'] : row['supplier'])
+                ?.toString().trim();
+            if (name == null || name.isEmpty || name == 'زبون نقدي') continue;
+            final total = (row['total'] as num?)?.toDouble() ?? 0;
+            final paid = (row['paid'] as num?)?.toDouble() ?? 0;
+            balances[name.toLowerCase()] = (balances[name.toLowerCase()] ?? 0) +
+                (total - paid).clamp(0, double.infinity).toDouble();
+          }
+        } catch (_) {}
+      }
+      for (final contact in _items) {
+        final name = (contact['name'] ?? '').toString().trim().toLowerCase();
+        contact['balance'] = balances[name] ?? 0;
+      }
+    }
     if (mounted) setState(() => _loading = false);
   }
 
