@@ -33,7 +33,7 @@ class _ProductEditorDialog extends StatefulWidget {
 
 class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   static const _categories = <String>[
-    'مواد البناء', 'الإسمنت', 'الآجر', 'الرمل والحصى', 'الحديد تسليح',
+    'مواد البناء', 'الإسمنت', 'الآجر', 'الرمل والحصى', 'الحديد', 'الحديد تسليح',
     'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت',
     'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA',
     'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد',
@@ -259,7 +259,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return _products.where((p) {
       final matches = p.name.toLowerCase().contains(q) || p.category.toLowerCase().contains(q);
       final low = _filter == 'نقص المخزون';
-      return matches && (!low || p.quantity <= p.minimum);
+      final categoryMatch = _filter == 'الكل' || low || p.category == _filter;
+      return matches && categoryMatch && (!low || p.quantity <= p.minimum);
     }).toList();
   }
 
@@ -308,7 +309,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         const SizedBox(height:18),
         TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(hintText:'ابحث عن منتج أو صنف...',prefixIcon:Icon(Icons.search))),
         const SizedBox(height:10),
-        Wrap(spacing:8,children:['الكل','نقص المخزون'].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
+        Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
         const SizedBox(height:12),
         if(_visible.isEmpty) const Card(child:Padding(padding:EdgeInsets.all(30),child:Center(child:Text('لا توجد منتجات مطابقة'))))
         else ..._visible.map((p)=>Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
