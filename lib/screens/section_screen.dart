@@ -36,7 +36,7 @@ class _SectionScreenState extends State<SectionScreen> {
           _FieldSpec('supplier', 'المورد'),
           _FieldSpec('quantity', 'الكمية المشتراة', number: true),
           _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
-          _FieldSpec('diameterMm', 'مقاس الحديد T بالملم (T8، T10، T12، T14، T16، T20، T25، T32)', number: true, optional: true),
+          _FieldSpec('diameterMm', 'مقاس حديد التسليح', number: true, optional: true, options: ['8', '10', '12', '14', '16', '20', '25', '32']),
           _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
           _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
           _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
@@ -667,6 +667,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (key == 'inputUnit') return 'kg';
     if (key == 'steelType') return 'حديد تسليح';
     if (key == 'lengthM') return '12';
+    if (key == 'diameterMm') return '12';
     return '0';
   }
 
