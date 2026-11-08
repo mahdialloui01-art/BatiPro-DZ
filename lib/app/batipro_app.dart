@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'app_theme.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
+import '../screens/inventory_screen.dart';
 
 class BatiProApp extends StatelessWidget {
   const BatiProApp({super.key});
@@ -43,9 +44,11 @@ class _AppShellState extends State<AppShell> {
     _NavItem('الإعدادات', Icons.settings_outlined),
   ];
 
-  Widget _page() => selected == 0
-      ? const DashboardScreen()
-      : SectionScreen(title: sections[selected].label, icon: sections[selected].icon);
+  Widget _page() {
+    if (selected == 0) return const DashboardScreen();
+    if (selected == 1) return const InventoryScreen();
+    return SectionScreen(title: sections[selected].label, icon: sections[selected].icon);
+  }
 
   @override
   Widget build(BuildContext context) {
