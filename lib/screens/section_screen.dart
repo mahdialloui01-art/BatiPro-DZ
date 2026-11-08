@@ -185,11 +185,33 @@ class _SectionScreenState extends State<SectionScreen> {
         }
       });
       await _persist();
+      if (_kind == 'purchases') await _ensureSupplier(result['supplier']?.toString() ?? '');
       _toast(old == null ? 'تمت إضافة السجل بنجاح.' : 'تم تحديث السجل.');
     } catch (_) {
       _toast('تعذر حفظ البيانات. حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _ensureSupplier(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('batipro_suppliers_v1');
+    final suppliers = raw == null ? <Map<String, dynamic>>[] :
+        (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final exists = suppliers.any((e) =>
+        (e['name'] ?? '').toString().trim().toLowerCase() == clean.toLowerCase());
+    if (!exists) {
+      suppliers.insert(0, {
+        'id': DateTime.now().microsecondsSinceEpoch.toString(),
+        'name': clean,
+        'phone': '',
+        'address': '',
+        'note': 'أضيف تلقائياً من سجل المشتريات',
+      });
+      await prefs.setString('batipro_suppliers_v1', jsonEncode(suppliers));
     }
   }
 
