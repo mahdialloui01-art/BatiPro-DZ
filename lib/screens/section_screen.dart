@@ -150,7 +150,7 @@ class _SectionScreenState extends State<SectionScreen> {
     if (result == null || !mounted) return;
     setState(() => _saving = true);
     try {
-      if (_kind == 'purchases') await _applyPurchaseToStock(result);
+      if (_kind == 'purchases') await _applyPurchaseToStock(result, old: old);
       setState(() {
         if (old == null) {
           result['id'] = DateTime.now().microsecondsSinceEpoch.toString();
@@ -170,27 +170,47 @@ class _SectionScreenState extends State<SectionScreen> {
     }
   }
 
-  Future<void> _applyPurchaseToStock(Map<String, dynamic> purchase) async {
+  Future<void> _applyPurchaseToStock(
+      Map<String, dynamic> purchase, {Map<String, dynamic>? old}) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('batipro_inventory_v1');
     if (raw == null) return;
     final stock = (jsonDecode(raw) as List)
         .map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    final name = (purchase['product'] ?? '').toString().trim().toLowerCase();
-    final quantity = (purchase['quantity'] as num?)?.toDouble() ?? 0;
-    final unitPrice = (purchase['unitPrice'] as num?)?.toDouble() ?? 0;
-    final index = stock.indexWhere((p) =>
-        (p['name'] ?? '').toString().trim().toLowerCase() == name);
-    if (index >= 0 && quantity > 0) {
+
+    void adjust(String productName, double quantityDelta, double unitPrice,
+        {bool addCost = true}) {
+      final name = productName.trim().toLowerCase();
+      if (name.isEmpty || quantityDelta == 0) return;
+      final index = stock.indexWhere((p) =>
+          (p['name'] ?? '').toString().trim().toLowerCase() == name);
+      if (index < 0) return;
       final product = stock[index];
-      final oldQuantity = (product['quantity'] as num).toDouble();
-      final oldPrice = (product['purchasePrice'] as num).toDouble();
-      final newQuantity = oldQuantity + quantity;
-      product['quantity'] = newQuantity;
-      product['purchasePrice'] =
-          ((oldQuantity * oldPrice) + (quantity * unitPrice)) / newQuantity;
-      await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+      final currentQuantity = (product['quantity'] as num).toDouble();
+      final currentPrice = (product['purchasePrice'] as num).toDouble();
+      if (quantityDelta > 0) {
+        final nextQuantity = currentQuantity + quantityDelta;
+        if (addCost && nextQuantity > 0) {
+          product['purchasePrice'] =
+              ((currentQuantity * currentPrice) + (quantityDelta * unitPrice)) / nextQuantity;
+        }
+        product['quantity'] = nextQuantity;
+      } else {
+        final nextQuantity = (currentQuantity + quantityDelta).clamp(0, double.infinity).toDouble();
+        product['quantity'] = nextQuantity;
+      }
     }
+
+    if (old != null) {
+      adjust((old['product'] ?? '').toString(),
+          -((old['quantity'] as num?)?.toDouble() ?? 0),
+          (old['unitPrice'] as num?)?.toDouble() ?? 0,
+          addCost: false);
+    }
+    adjust((purchase['product'] ?? '').toString(),
+        (purchase['quantity'] as num?)?.toDouble() ?? 0,
+        (purchase['unitPrice'] as num?)?.toDouble() ?? 0);
+    await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
   }
 
   Future<void> _delete(Map<String, dynamic> item) async {
@@ -206,6 +226,24 @@ class _SectionScreenState extends State<SectionScreen> {
       ),
     );
     if (yes != true) return;
+    if (_kind == 'purchases') {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('batipro_inventory_v1');
+      if (raw != null) {
+        final stock = (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final name = (item['product'] ?? '').toString().trim().toLowerCase();
+        final index = stock.indexWhere((p) =>
+            (p['name'] ?? '').toString().trim().toLowerCase() == name);
+        if (index >= 0) {
+          final product = stock[index];
+          final current = (product['quantity'] as num).toDouble();
+          final purchased = (item['quantity'] as num?)?.toDouble() ?? 0;
+          product['quantity'] = (current - purchased).clamp(0, double.infinity);
+          await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+        }
+      }
+    }
     setState(() => _items.removeWhere((e) => e['id'] == item['id']));
     await _persist();
   }
@@ -274,7 +312,7 @@ class _SectionScreenState extends State<SectionScreen> {
   Widget _metrics(List<Widget> children, bool compact) => GridView.count(
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
-    crossAxisCount: compact ? 2 : children.length.clamp(2, 4),
+    crossAxisCount: compact ? 2 : children.length.clamp(2, 4).toInt(),
     crossAxisSpacing: 10,
     mainAxisSpacing: 10,
     childAspectRatio: compact ? 1.85 : 2.15,
