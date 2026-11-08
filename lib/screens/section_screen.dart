@@ -336,7 +336,7 @@ class _SectionScreenState extends State<SectionScreen> {
   ));
 
   Widget _recordCard(Map<String, dynamic> item, String headline, String subtitle,
-      String trailing, {String? status, Color? statusColor}) {
+      String trailing, {String? status, Color? statusColor, Widget? action}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       child: Padding(
@@ -358,6 +358,7 @@ class _SectionScreenState extends State<SectionScreen> {
           const SizedBox(width: 6),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(trailing, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+            if (action != null) action,
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
               onSelected: (value) {
@@ -373,6 +374,49 @@ class _SectionScreenState extends State<SectionScreen> {
         ]),
       ),
     );
+  }
+
+  Future<void> _collectSupplierPayment(Map<String, dynamic> purchase) async {
+    final total = (purchase['total'] as num?)?.toDouble() ?? 0;
+    final paid = (purchase['paid'] as num?)?.toDouble() ?? 0;
+    final due = (total - paid).clamp(0, double.infinity).toDouble();
+    if (due <= 0) {
+      _toast('هذا الوصل مدفوع بالكامل.');
+      return;
+    }
+    final controller = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل دفعة للمورد'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(due)}'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            if (value == null || !value.isFinite || value <= 0 || value > due) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً صحيحاً لا يتجاوز المتبقي.')));
+              return;
+            }
+            Navigator.pop(ctx, value);
+          }, child: const Text('تأكيد الدفع')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null || !mounted) return;
+    final index = _items.indexWhere((e) => e['id'] == purchase['id']);
+    if (index < 0) return;
+    setState(() {
+      _items[index] = {..._items[index], 'paid': paid + amount};
+    });
+    await _persist();
+    _toast('تم تسجيل دفعة المورد وتحديث الرصيد.');
   }
 
   Widget _buildPurchases(bool compact) {
@@ -395,7 +439,12 @@ class _SectionScreenState extends State<SectionScreen> {
         e, (e['product'] ?? '').toString(),
         '${e['supplier'] ?? 'مورد غير محدد'} • كمية: ${e['quantity'] ?? 0} • ${e['reference'] ?? 'بدون رقم وصل'}',
         _money((e['total'] as num?)?.toDouble() ?? 0),
-        status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)}',
+        status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)} • المتبقي: ${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
+        action: IconButton(
+          tooltip: 'تسجيل دفعة للمورد',
+          onPressed: () => _collectSupplierPayment(e),
+          icon: const Icon(Icons.payments_outlined, size: 19, color: BatiProTheme.green),
+        ),
       )),
       const SizedBox(height: 8),
       const Text('عند مطابقة اسم المادة مع منتج موجود في المخزون، تتم إضافة الكمية تلقائياً ويُحدّث متوسط سعر الشراء.',
