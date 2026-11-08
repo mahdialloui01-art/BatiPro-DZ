@@ -210,20 +210,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     await _save();
   }
 
-  Widget _field(TextEditingController c, String label, {bool numeric = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: TextFormField(
-      controller: c,
-      keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-      decoration: InputDecoration(labelText: label),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return 'هذا الحقل مطلوب';
-        final parsed = numeric ? double.tryParse(v.replaceAll(',', '.')) : null;
-        if (numeric && (parsed == null || !parsed.isFinite || parsed < 0)) return 'أدخل رقماً صحيحاً';
-        return null;
-      },
-    ),
-  );
 
   Future<void> _delete(_Product p) async {
     final yes = await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
