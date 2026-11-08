@@ -700,7 +700,9 @@ class _EntryEditorState extends State<_EntryEditor> {
         final weightKg = enteredQuantity * (unit == 'ton' ? 1000 : 1);
         final length = (result['lengthM'] as num?)?.toDouble() ?? 12;
         final roundSolid = steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت';
-        final pieceWeight = roundSolid && diameter > 0 ? (diameter * diameter / 162) * length : manualWeight;
+        final pieceWeight = roundSolid && diameter > 0
+            ? (3.141592653589793 / 4) * (diameter / 1000) * (diameter / 1000) * length * 7850
+            : manualWeight;
         if (pieceWeight <= 0 || !pieceWeight.isFinite || length <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('للحديد: أدخل قطر القضيب، أو وزن القطعة بالكيلوغرام للأنواع الأخرى.')));
           return;
