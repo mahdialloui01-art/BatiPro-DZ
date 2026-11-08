@@ -106,23 +106,6 @@ class _SectionScreenState extends State<SectionScreen> {
     return 'general';
   }
 
-  @override
-  String _initialFieldValue(String key) {
-    final initial = widget.initial;
-    dynamic value;
-    if (key == 'quantity' && initial != null && initial['inputQuantity'] != null) {
-      value = initial['inputQuantity'];
-    } else if (initial != null) {
-      value = initial[key];
-    }
-    if (value != null) return value.toString();
-    if (key == 'paid') return '0';
-    if (key == 'inputUnit') return 'kg';
-    if (key == 'steelType') return 'حديد تسليح';
-    if (key == 'lengthM') return '12';
-    return '0';
-  }
-
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -670,6 +653,23 @@ class _EntryEditor extends StatefulWidget {
 class _EntryEditorState extends State<_EntryEditor> {
   final _formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _controllers;
+
+  String _initialFieldValue(String key) {
+    final initial = widget.initial;
+    dynamic value;
+    if (key == 'quantity' && initial != null && initial['inputQuantity'] != null) {
+      value = initial['inputQuantity'];
+    } else if (initial != null) {
+      value = initial[key];
+    }
+    if (value != null) return value.toString();
+    if (key == 'paid') return '0';
+    if (key == 'inputUnit') return 'kg';
+    if (key == 'steelType') return 'حديد تسليح';
+    if (key == 'lengthM') return '12';
+    return '0';
+  }
+
   @override
   void initState() {
     super.initState();
