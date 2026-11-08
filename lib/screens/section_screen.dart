@@ -5,8 +5,8 @@ import '../app/app_theme.dart';
 
 class _FieldSpec {
   final String key, label;
-  final bool number;
-  const _FieldSpec(this.key, this.label, {this.number = false});
+  final bool number, optional;
+  const _FieldSpec(this.key, this.label, {this.number = false, this.optional = false});
 }
 
 class SectionScreen extends StatefulWidget {
@@ -32,8 +32,12 @@ class _SectionScreenState extends State<SectionScreen> {
         return const [
           _FieldSpec('product', 'اسم المادة'),
           _FieldSpec('supplier', 'المورد'),
-          _FieldSpec('quantity', 'الكمية', number: true),
-          _FieldSpec('unitPrice', 'سعر الوحدة (دج)', number: true),
+          _FieldSpec('quantity', 'الكمية المشتراة', number: true),
+          _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
+          _FieldSpec('diameterMm', 'قطر حديد التسليح (مم) — 0 للأنواع الأخرى', number: true, optional: true),
+          _FieldSpec('lengthM', 'طول القضيب بالمتر (افتراضي 12)', number: true, optional: true),
+          _FieldSpec('pieceWeightKg', 'وزن القطعة بالكغ للحديد غير الدائري', number: true, optional: true),
+          _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
           _FieldSpec('paid', 'المبلغ المدفوع (دج)', number: true),
           _FieldSpec('reference', 'رقم وصل الشراء'),
         ];
@@ -249,12 +253,12 @@ class _SectionScreenState extends State<SectionScreen> {
     if (old != null) {
       adjust((old['product'] ?? '').toString(),
           -((old['quantity'] as num?)?.toDouble() ?? 0),
-          (old['unitPrice'] as num?)?.toDouble() ?? 0,
+          (old['stockUnitPrice'] as num?)?.toDouble() ?? (old['unitPrice'] as num?)?.toDouble() ?? 0,
           addCost: false);
     }
     adjust((purchase['product'] ?? '').toString(),
         (purchase['quantity'] as num?)?.toDouble() ?? 0,
-        (purchase['unitPrice'] as num?)?.toDouble() ?? 0);
+        (purchase['stockUnitPrice'] as num?)?.toDouble() ?? (purchase['unitPrice'] as num?)?.toDouble() ?? 0);
     await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
   }
 
@@ -482,7 +486,7 @@ class _SectionScreenState extends State<SectionScreen> {
       const SizedBox(height: 10),
       if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
         e, (e['product'] ?? '').toString(),
-        '${e['supplier'] ?? 'مورد غير محدد'} • كمية: ${e['quantity'] ?? 0} • ${e['reference'] ?? 'بدون رقم وصل'}',
+        '${e['supplier'] ?? 'مورد غير محدد'} • كمية: ${e['inputQuantity'] ?? e['quantity'] ?? 0} ${e['inputUnit'] ?? ''} • ${e['pieceCount'] == null ? '' : '≈ ${((e['pieceCount'] as num).toDouble()).toStringAsFixed(1)} قضيب • '} ${e['reference'] ?? 'بدون رقم وصل'}',
         _money((e['total'] as num?)?.toDouble() ?? 0),
         status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)} • المتبقي: ${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
         action: IconButton(
@@ -647,13 +651,14 @@ class _EntryEditor extends StatefulWidget {
 class _EntryEditorState extends State<_EntryEditor> {
   final _formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _controllers;
+  bool _isIron = false;
 
   @override
   void initState() {
     super.initState();
     _controllers = {
       for (final field in widget.fields)
-        field.key: TextEditingController(text: widget.initial?[field.key]?.toString() ?? (field.key == 'paid' ? '0' : '')),
+        field.key: TextEditingController(text: (field.key == 'quantity' && widget.initial?['inputQuantity'] != null ? widget.initial?['inputQuantity'] : widget.initial?[field.key])?.toString() ?? (field.key == 'paid' ? '0' : field.key == 'inputUnit' ? 'kg' : field.key == 'lengthM' ? '12' : '0')),
     };
   }
 
@@ -673,11 +678,44 @@ class _EntryEditorState extends State<_EntryEditor> {
       result[field.key] = field.number ? (double.tryParse(value.replaceAll(',', '.')) ?? 0) : value;
     }
     if (widget.title.contains('المشتريات')) {
-      final quantity = (result['quantity'] as num).toDouble();
+      final enteredQuantity = (result['quantity'] as num).toDouble();
       final price = (result['unitPrice'] as num).toDouble();
       final paid = (result['paid'] as num).toDouble();
-      result['total'] = quantity * price;
-      if (paid > (result['total'] as num).toDouble()) {
+      final productName = (result['product'] ?? '').toString().toLowerCase();
+      final iron = productName.contains('حديد');
+      final unit = (result['inputUnit'] ?? 'kg').toString().trim().toLowerCase();
+      if (unit != 'kg' && unit != 'ton') {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
+        return;
+      }
+      final total = enteredQuantity * price;
+      result['inputQuantity'] = enteredQuantity;
+      result['inputUnit'] = unit;
+      result['total'] = total;
+      if (iron) {
+        final weightKg = enteredQuantity * (unit == 'ton' ? 1000 : 1);
+        final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
+        final length = (result['lengthM'] as num?)?.toDouble() ?? 12;
+        final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
+        final pieceWeight = diameter > 0 ? (diameter * diameter / 162) * length : manualWeight;
+        if (pieceWeight <= 0 || !pieceWeight.isFinite || length <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('للحديد: أدخل قطر القضيب، أو وزن القطعة بالكيلوغرام للأنواع الأخرى.')));
+          return;
+        }
+        final pieces = weightKg / pieceWeight;
+        result['weightKg'] = weightKg;
+        result['pieceWeightKgCalculated'] = pieceWeight;
+        result['pieceCount'] = pieces;
+        result['quantity'] = pieces;
+        result['stockUnitPrice'] = total / pieces;
+        result['unitPrice'] = price;
+        result['stockUnit'] = 'قضيب';
+      } else {
+        result['quantity'] = enteredQuantity;
+        result['stockUnitPrice'] = price;
+      }
+      if (paid > total) {
+      if (paid > total) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المبلغ المدفوع أكبر من الإجمالي.')));
         return;
       }
@@ -700,10 +738,11 @@ class _EntryEditorState extends State<_EntryEditor> {
                 child: TextFormField(
                   controller: _controllers[field.key],
                   keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-                  decoration: InputDecoration(labelText: field.label),
+                  decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'مثال: 8 أو 10 أو 12 أو 14 أو 16 أو 20 أو 25 أو 32' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
-                    if (field.number) {
+                    if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
+                    if (field.optional && (value == null || value.trim().isEmpty)) return null;
+                    if (field.number && value.trim().isNotEmpty) {
                       final n = double.tryParse(value.trim().replaceAll(',', '.'));
                       if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
                     }
