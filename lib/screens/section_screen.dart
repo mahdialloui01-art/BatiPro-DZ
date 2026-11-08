@@ -244,6 +244,7 @@ class _SectionScreenState extends State<SectionScreen> {
               ((currentQuantity * currentPrice) + (quantityDelta * unitPrice)) / nextQuantity;
         }
         product['quantity'] = nextQuantity;
+        if ((purchase['stockUnit'] ?? '').toString().isNotEmpty) product['unit'] = purchase['stockUnit'];
       } else {
         final nextQuantity = (currentQuantity + quantityDelta).clamp(0, double.infinity).toDouble();
         product['quantity'] = nextQuantity;
@@ -682,7 +683,9 @@ class _EntryEditorState extends State<_EntryEditor> {
       final price = (result['unitPrice'] as num).toDouble();
       final paid = (result['paid'] as num).toDouble();
       final productName = (result['product'] ?? '').toString().toLowerCase();
-      final iron = productName.contains('حديد');
+      final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
+      final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
+      final iron = productName.contains('حديد') || productName.contains('steel') || productName.contains('acier') || productName.contains('فولاذ') || diameter > 0 || manualWeight > 0;
       final unit = (result['inputUnit'] ?? 'kg').toString().trim().toLowerCase();
       if (unit != 'kg' && unit != 'ton') {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
@@ -694,9 +697,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       result['total'] = total;
       if (iron) {
         final weightKg = enteredQuantity * (unit == 'ton' ? 1000 : 1);
-        final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
         final length = (result['lengthM'] as num?)?.toDouble() ?? 12;
-        final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
         final pieceWeight = diameter > 0 ? (diameter * diameter / 162) * length : manualWeight;
         if (pieceWeight <= 0 || !pieceWeight.isFinite || length <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('للحديد: أدخل قطر القضيب، أو وزن القطعة بالكيلوغرام للأنواع الأخرى.')));
@@ -714,7 +715,6 @@ class _EntryEditorState extends State<_EntryEditor> {
         result['quantity'] = enteredQuantity;
         result['stockUnitPrice'] = price;
       }
-      if (paid > total) {
       if (paid > total) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المبلغ المدفوع أكبر من الإجمالي.')));
         return;
