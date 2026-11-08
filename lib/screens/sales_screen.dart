@@ -79,9 +79,61 @@ class _SalesScreenState extends State<SalesScreen> {
     }
     setState(()=>products=updated);
     setState(()=>invoices.insert(0,invoice));
+    await _registerCustomer(invoice.client);
     await _persist();
     _toast('تم حفظ الفاتورة وخصم الكميات من المخزون.');
   }
+
+  Future<void> _registerCustomer(String name) async {
+    if (name.trim().isEmpty || name == 'زبون نقدي') return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('batipro_customers_v1');
+    final customers = raw == null ? <Map<String,dynamic>>[] :
+      (jsonDecode(raw) as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
+    final exists = customers.any((e)=>(e['name']??'').toString().trim().toLowerCase()==name.trim().toLowerCase());
+    if (!exists) {
+      customers.insert(0, {'id': DateTime.now().microsecondsSinceEpoch.toString(), 'name': name.trim(), 'phone': '', 'address': '', 'note': 'أضيف تلقائياً من فاتورة بيع'});
+      await prefs.setString('batipro_customers_v1', jsonEncode(customers));
+    }
+  }
+
+  Future<void> _collectPayment(_SaleInvoice invoice) async {
+    if (invoice.due <= 0) return;
+    final controller = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل تحصيل دفعة'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(invoice.due)}'),
+        ),
+        actions: [
+          TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: (){
+            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            if (value == null || !value.isFinite || value <= 0 || value > invoice.due) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً أكبر من صفر ولا يتجاوز المتبقي.')));
+              return;
+            }
+            Navigator.pop(ctx, value);
+          }, child: const Text('تأكيد التحصيل')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null || !mounted) return;
+    final index = invoices.indexWhere((e)=>e.id==invoice.id);
+    if (index < 0) return;
+    final current = invoices[index];
+    final updated = _SaleInvoice(current.id,current.client,current.method,current.date,current.total,(current.paid+amount).clamp(0,current.total).toDouble(),current.items);
+    setState(()=>invoices[index]=updated);
+    await _persist();
+    _toast('تم تسجيل التحصيل وتحديث دين الزبون.');
+  }
+
   Future<void> _showInvoice(_SaleInvoice i) async {
     await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
       title:Text('فاتورة '+i.id),
@@ -90,7 +142,10 @@ class _SalesScreenState extends State<SalesScreen> {
         for(final e in i.items)Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[Expanded(child:Text(e['name'].toString()+' • '+e['quantity'].toString()+' '+e['unit'].toString(),style:const TextStyle(fontSize:12))),Text(_money((e['total'] as num).toDouble()))])),
         const Divider(height:22),_detail('الإجمالي',_money(i.total)),_detail('المدفوع',_money(i.paid)),_detail('المتبقي',_money(i.due),i.due>0?BatiProTheme.red:BatiProTheme.green),_detail('طريقة الدفع',i.method),_detail('الحالة',i.status),
       ]))),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))],
+      actions:[
+        if(i.due>0) FilledButton.icon(onPressed:()=>_collectPayment(i),icon:const Icon(Icons.payments_outlined),label:const Text('تحصيل دفعة')),
+        TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق')),
+      ],
     ));
   }
   Widget _detail(String a,String b,[Color? color])=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[Expanded(child:Text(a,style:const TextStyle(color:BatiProTheme.muted,fontSize:12))),Text(b,style:TextStyle(fontWeight:FontWeight.bold,color:color??BatiProTheme.ink))]));
