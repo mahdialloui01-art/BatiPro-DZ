@@ -26,19 +26,19 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
-      - name: Build installable debug APK
-        run: flutter build apk --debug
+      - name: Build installable release APK
+        run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
-          name: BatiPro-DZ-Android-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: BatiPro-DZ-Android-release
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
       - name: Publish direct APK download
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0-test
-          name: BatiPro DZ – نسخة تجريبية
+          tag_name: v0.1.1-test
+          name: BatiPro DZ – نسخة تثبيت جديدة
           generate_release_notes: true
-          files: build/app/outputs/flutter-apk/app-debug.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
