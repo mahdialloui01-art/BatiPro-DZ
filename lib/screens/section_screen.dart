@@ -654,8 +654,6 @@ class _EntryEditor extends StatefulWidget {
 class _EntryEditorState extends State<_EntryEditor> {
   final _formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _controllers;
-  bool _isIron = false;
-
   @override
   void initState() {
     super.initState();
@@ -759,8 +757,8 @@ class _EntryEditorState extends State<_EntryEditor> {
                         validator: (value) {
                           if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
                           if (field.optional && (value == null || value.trim().isEmpty)) return null;
-                          if (field.number && value.trim().isNotEmpty) {
-                            final n = double.tryParse(value.trim().replaceAll(',', '.'));
+                          if (field.number && (value ?? '').trim().isNotEmpty) {
+                            final n = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
                             if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
                           }
                           return null;
