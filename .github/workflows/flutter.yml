@@ -26,8 +26,33 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
-      - name: Build installable release APK
+      - name: Build universal release APK
         run: flutter build apk --release
+      - name: Verify APK integrity, signature and device compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          echo "=== APK file ==="
+          ls -lh "$APK"
+          sha256sum "$APK"
+          echo "=== ZIP integrity ==="
+          unzip -t "$APK" | tail -n 2
+          echo "=== Android package metadata ==="
+          "$TOOLS_DIR/aapt" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|native-code:)"
+          echo "=== APK signature verification ==="
+          "$TOOLS_DIR/apksigner" verify --verbose --print-certs "$APK"
+      - name: Test installation on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            adb install build/app/outputs/flutter-apk/app-release.apk
+            PACKAGE=$("$ANDROID_HOME"/build-tools/*/aapt dump badging build/app/outputs/flutter-apk/app-release.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)
+            adb shell monkey -p "$PACKAGE" 1
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
@@ -38,7 +63,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.1-test
-          name: BatiPro DZ – نسخة تثبيت جديدة
+          tag_name: v0.1.2-install-verified
+          name: BatiPro DZ – فحص تثبيت Android
           generate_release_notes: true
           files: build/app/outputs/flutter-apk/app-release.apk
