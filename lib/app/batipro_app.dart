@@ -1,0 +1,167 @@
+import 'package:flutter/material.dart';
+import 'app_theme.dart';
+import '../screens/dashboard_screen.dart';
+import '../screens/section_screen.dart';
+
+class BatiProApp extends StatelessWidget {
+  const BatiProApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'BatiPro DZ',
+      debugShowCheckedModeBanner: false,
+      theme: BatiProTheme.light,
+      home: const Directionality(
+        textDirection: TextDirection.rtl,
+        child: AppShell(),
+      ),
+    );
+  }
+}
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  int selected = 0;
+
+  static const sections = [
+    _NavItem('لوحة القيادة', Icons.grid_view_rounded),
+    _NavItem('المنتجات والمخزون', Icons.inventory_2_outlined),
+    _NavItem('المبيعات والفواتير', Icons.point_of_sale_rounded),
+    _NavItem('المشتريات', Icons.shopping_bag_outlined),
+    _NavItem('الزبائن', Icons.groups_2_outlined),
+    _NavItem('الموردون', Icons.local_shipping_outlined),
+    _NavItem('المستودعات', Icons.warehouse_outlined),
+    _NavItem('المصاريف', Icons.receipt_long_outlined),
+    _NavItem('التقارير', Icons.bar_chart_rounded),
+    _NavItem('الإعدادات', Icons.settings_outlined),
+  ];
+
+  Widget _page() => selected == 0
+      ? const DashboardScreen()
+      : SectionScreen(title: sections[selected].label, icon: sections[selected].icon);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      return Scaffold(
+        body: Row(
+          children: [
+            if (wide) _Sidebar(
+              items: sections,
+              selected: selected,
+              onSelect: (i) => setState(() => selected = i),
+            ),
+            Expanded(child: _page()),
+          ],
+        ),
+        bottomNavigationBar: wide ? null : NavigationBar(
+          selectedIndex: selected > 3 ? 0 : selected,
+          onDestinationSelected: (i) => setState(() => selected = i),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
+            NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'المخزون'),
+            NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: 'المبيعات'),
+            NavigationDestination(icon: Icon(Icons.menu_rounded), label: 'المزيد'),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  const _NavItem(this.label, this.icon);
+}
+
+class _Sidebar extends StatelessWidget {
+  final List<_NavItem> items;
+  final int selected;
+  final ValueChanged<int> onSelect;
+  const _Sidebar({required this.items, required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 258,
+      color: BatiProTheme.ink,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 26),
+              child: Row(children: [
+                Container(
+                  width: 43, height: 43,
+                  decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(13)),
+                  child: const Icon(Icons.construction_rounded, color: BatiProTheme.ink, size: 27),
+                ),
+                const SizedBox(width: 12),
+                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('BatiPro DZ', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 3),
+                  Text('GESTION • BÂTIMENT', style: TextStyle(color: Color(0xFFB8C6D0), fontSize: 9, letterSpacing: 1.2)),
+                ]),
+              ]),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(22, 0, 22, 10),
+              child: Text('القائمة الرئيسية', style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: items.length,
+                itemBuilder: (context, i) {
+                  final active = selected == i;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(11),
+                      onTap: () => onSelect(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: active ? const Color(0xFF2A4659) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(11),
+                          border: active ? const Border(right: BorderSide(color: BatiProTheme.gold, width: 3)) : null,
+                        ),
+                        child: Row(children: [
+                          Icon(items[i].icon, size: 19, color: active ? BatiProTheme.gold : const Color(0xFFB8C6D0)),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(items[i].label, style: TextStyle(color: active ? Colors.white : const Color(0xFFD0DAE1), fontSize: 12.5, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
+                        ]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(14)),
+              child: const Row(children: [
+                Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
+                SizedBox(width: 9),
+                Expanded(child: Text('وضع العمل دون إنترنت', style: TextStyle(color: Colors.white, fontSize: 11))),
+                Icon(Icons.circle, color: Color(0xFF48B58B), size: 8),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
