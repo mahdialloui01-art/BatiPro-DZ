@@ -64,7 +64,38 @@ class _AppShellState extends State<AppShell> {
         ),
         bottomNavigationBar: wide ? null : NavigationBar(
           selectedIndex: selected > 3 ? 0 : selected,
-          onDestinationSelected: (i) => setState(() => selected = i),
+          onDestinationSelected: (i) {
+            if (i == 3) {
+              showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                backgroundColor: Colors.white,
+                builder: (sheetContext) => SafeArea(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: Text('كل الأقسام', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
+                      ),
+                      for (var index = 3; index < sections.length; index++)
+                        ListTile(
+                          leading: Icon(sections[index].icon, color: BatiProTheme.ink),
+                          title: Text(sections[index].label, style: const TextStyle(fontSize: 13)),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            setState(() => selected = index);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            } else {
+              setState(() => selected = i);
+            }
+          },
           destinations: const [
             NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
             NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'المخزون'),
