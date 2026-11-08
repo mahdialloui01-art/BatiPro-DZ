@@ -75,26 +75,12 @@ class _AppShellState extends State<AppShell> {
                 context: context,
                 showDragHandle: true,
                 backgroundColor: Colors.white,
-                builder: (sheetContext) => SafeArea(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        child: Text('كل الأقسام', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
-                      ),
-                      for (var index = 3; index < sections.length; index++)
-                        ListTile(
-                          leading: Icon(sections[index].icon, color: BatiProTheme.ink),
-                          title: Text(sections[index].label, style: const TextStyle(fontSize: 13)),
-                          onTap: () {
-                            Navigator.pop(sheetContext);
-                            setState(() => selected = index);
-                          },
-                        ),
-                    ],
-                  ),
+                builder: (sheetContext) => _MoreSectionsSheet(
+                  items: sections,
+                  onSelect: (index) {
+                    Navigator.pop(sheetContext);
+                    setState(() => selected = index);
+                  },
                 ),
               );
             } else {
@@ -194,6 +180,126 @@ class _Sidebar extends StatelessWidget {
                 Expanded(child: Text('وضع العمل دون إنترنت', style: TextStyle(color: Colors.white, fontSize: 11))),
                 Icon(Icons.circle, color: Color(0xFF48B58B), size: 8),
               ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _MoreSectionsSheet extends StatelessWidget {
+  final List<_NavItem> items;
+  final ValueChanged<int> onSelect;
+  const _MoreSectionsSheet({required this.items, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = <({String title, String subtitle, List<int> indexes})>[
+      (title: 'العمليات التجارية', subtitle: 'تابع حركة تجارتك اليومية', indexes: [3, 7]),
+      (title: 'العلاقات التجارية', subtitle: 'إدارة الأشخاص المتعاملين معك', indexes: [4, 5]),
+      (title: 'التنظيم والتحليل', subtitle: 'رتّب العمل وراقب النتائج', indexes: [6, 8, 9]),
+    ];
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .86),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF6F8FA),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              child: Column(
+                children: [
+                  Container(width: 38, height: 4, decoration: BoxDecoration(color: const Color(0xFFD5DCE2), borderRadius: BorderRadius.circular(8))),
+                  const SizedBox(height: 19),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(color: BatiProTheme.ink, borderRadius: BorderRadius.circular(15)),
+                        child: const Icon(Icons.apps_rounded, color: BatiProTheme.gold, size: 25),
+                      ),
+                      const SizedBox(width: 13),
+                      const Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('المزيد من BatiPro', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+                          SizedBox(height: 4),
+                          Text('جميع أدوات إدارة محل مواد البناء', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+                        ],
+                      )),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded, color: BatiProTheme.muted),
+                        style: IconButton.styleFrom(backgroundColor: Colors.white),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 22),
+                children: [
+                  for (final group in groups) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 13, 4, 10),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(group.title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+                        const SizedBox(height: 3),
+                        Text(group.subtitle, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+                      ]),
+                    ),
+                    for (final index in group.indexes)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 9),
+                        child: Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => onSelect(index),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                              child: Row(children: [
+                                Container(
+                                  width: 43, height: 43,
+                                  decoration: BoxDecoration(
+                                    color: BatiProTheme.gold.withValues(alpha: .16),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: Icon(items[index].icon, color: BatiProTheme.ink, size: 21),
+                                ),
+                                const SizedBox(width: 13),
+                                Expanded(child: Text(items[index].label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BatiProTheme.ink))),
+                                const Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: BatiProTheme.ink,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('تقدر تخدم على بياناتك حتى بدون إنترنت', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
+                      Icon(Icons.check_circle_rounded, color: Color(0xFF58C99B), size: 16),
+                    ]),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
