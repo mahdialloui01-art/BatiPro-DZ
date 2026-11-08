@@ -32,59 +32,69 @@ class _ProductEditorDialog extends StatefulWidget {
 }
 
 class _ProductEditorDialogState extends State<_ProductEditorDialog> {
+  static const _categories = <String>[
+    'مواد البناء', 'الإسمنت', 'الآجر', 'الرمل والحصى', 'الحديد تسليح',
+    'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت',
+    'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA',
+    'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد',
+    'فلات بار (حديد مسطح)', 'قضبان ملولبة', 'مسامير وبراغي', 'حديد آخر',
+  ];
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _category;
-  late final TextEditingController _unit;
   late final TextEditingController _quantity;
   late final TextEditingController _minimum;
   late final TextEditingController _purchasePrice;
   late final TextEditingController _salePrice;
+  late final TextEditingController _weight;
+  late final TextEditingController _diameter;
+  late final TextEditingController _length;
+  late final TextEditingController _pieceWeight;
+  late String _category;
+  late String _weightUnit;
+
+  bool get _isSteel => _categories.skip(4).contains(_category);
+  bool get _usesDiameter => _category == 'الحديد تسليح' || _category == 'حديد دائري مصمت';
 
   @override
   void initState() {
     super.initState();
     final p = widget.product;
     _name = TextEditingController(text: p?.name ?? '');
-    _category = TextEditingController(text: p?.category ?? 'مواد البناء');
-    _unit = TextEditingController(text: p?.unit ?? 'وحدة');
+    _category = _categories.contains(p?.category) ? p!.category : (p?.category ?? 'مواد البناء');
     _quantity = TextEditingController(text: p?.quantity.toString() ?? '0');
     _minimum = TextEditingController(text: p?.minimum.toString() ?? '5');
     _purchasePrice = TextEditingController(text: p?.purchasePrice.toString() ?? '0');
     _salePrice = TextEditingController(text: p?.salePrice.toString() ?? '0');
+    _weight = TextEditingController(text: p == null ? '0' : p.quantity.toString());
+    _diameter = TextEditingController(text: '12');
+    _length = TextEditingController(text: '12');
+    _pieceWeight = TextEditingController(text: '');
+    _weightUnit = 'kg';
   }
 
   @override
   void dispose() {
-    _name.dispose();
-    _category.dispose();
-    _unit.dispose();
-    _quantity.dispose();
-    _minimum.dispose();
-    _purchasePrice.dispose();
-    _salePrice.dispose();
+    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   double _number(TextEditingController c) =>
-      double.parse(c.text.trim().replaceAll(',', '.'));
+      double.tryParse(c.text.trim().replaceAll(',', '.')) ?? 0;
 
-  Widget _field(TextEditingController controller, String label, {bool numeric = false}) {
+  Widget _field(TextEditingController controller, String label, {bool numeric = false, String? helper}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextFormField(
         controller: controller,
-        keyboardType: numeric
-            ? const TextInputType.numberWithOptions(decimal: true)
-            : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
+        keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        decoration: InputDecoration(labelText: label, helperText: helper),
         validator: (value) {
           if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
           if (numeric) {
             final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
-            if (parsed == null || !parsed.isFinite || parsed < 0) {
-              return 'أدخل رقماً صحيحاً';
-            }
+            if (parsed == null || !parsed.isFinite || parsed < 0) return 'أدخل رقماً صحيحاً';
           }
           return null;
         },
@@ -95,13 +105,47 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     final p = widget.product;
+    var finalQuantity = _number(_quantity);
+    var finalUnit = p?.unit ?? 'وحدة';
+    var finalCategory = _category;
+    if (_isSteel) {
+      final enteredWeight = _number(_weight);
+      final weightKg = enteredWeight * (_weightUnit == 'ton' ? 1000 : 1);
+      final lengthM = _number(_length);
+      final diameterMm = _number(_diameter);
+      final manualPieceWeight = _number(_pieceWeight);
+      double pieceWeightKg;
+      if (_usesDiameter) {
+        if (diameterMm <= 0 || lengthM <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل قطر الحديد وطول القضيب بشكل صحيح.')));
+          return;
+        }
+        pieceWeightKg = (3.141592653589793 / 4) *
+            (diameterMm / 1000) * (diameterMm / 1000) * lengthM * 7850;
+      } else {
+        pieceWeightKg = manualPieceWeight;
+        if (pieceWeightKg <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل وزن القطعة الواحدة بالكيلوغرام لهذا النوع من الحديد.')));
+          return;
+        }
+      }
+      if (weightKg <= 0 || !weightKg.isFinite || !pieceWeightKg.isFinite) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل وزناً صحيحاً أكبر من صفر.')));
+        return;
+      }
+      finalQuantity = weightKg / pieceWeightKg;
+      finalUnit = _usesDiameter ? 'قضيب' : 'قطعة';
+      if (!finalQuantity.isFinite || finalQuantity <= 0) return;
+    } else {
+      finalUnit = p?.unit ?? 'وحدة';
+    }
     Navigator.of(context).pop(_Product(
       id: p?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
       name: _name.text.trim(),
-      category: _category.text.trim(),
-      unit: _unit.text.trim(),
-      quantity: _number(_quantity),
-      minimum: _number(_minimum),
+      category: finalCategory,
+      unit: finalUnit,
+      quantity: finalQuantity,
+      minimum: _isSteel ? _number(_minimum) : _number(_minimum),
       purchasePrice: _number(_purchasePrice),
       salePrice: _number(_salePrice),
     ));
@@ -110,39 +154,66 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.product == null ? 'إضافة منتج' : 'تعديل المنتج'),
+      title: Text(widget.product == null ? 'إضافة منتج للمخزون' : 'تعديل المنتج'),
       content: SizedBox(
         width: 440,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _field(_name, 'اسم المنتج'),
-                _field(_category, 'الصنف'),
-                _field(_unit, 'وحدة القياس'),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _field(_name, 'اسم المنتج'),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: DropdownButtonFormField<String>(
+                  value: _categories.contains(_category) ? _category : 'مواد البناء',
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'الصنف / نوع الحديد'),
+                  items: _categories.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+                  onChanged: (v) => setState(() => _category = v ?? 'مواد البناء'),
+                ),
+              ),
+              if (_isSteel) ...[
                 Row(children: [
-                  Expanded(child: _field(_quantity, 'الكمية', numeric: true)),
+                  Expanded(child: _field(_weight, 'الوزن المضاف', numeric: true)),
                   const SizedBox(width: 8),
-                  Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
+                  Expanded(child: DropdownButtonFormField<String>(
+                    value: _weightUnit,
+                    decoration: const InputDecoration(labelText: 'الوحدة'),
+                    items: const [
+                      DropdownMenuItem(value: 'kg', child: Text('كيلوغرام')),
+                      DropdownMenuItem(value: 'ton', child: Text('طن')),
+                    ],
+                    onChanged: (v) => setState(() => _weightUnit = v ?? 'kg'),
+                  )),
                 ]),
-                Row(children: [
-                  Expanded(child: _field(_purchasePrice, 'سعر الشراء', numeric: true)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _field(_salePrice, 'سعر البيع', numeric: true)),
-                ]),
+                if (_usesDiameter) ...[
+                  _field(_diameter, 'قطر القضيب بالملم (مثلاً 8 أو 10 أو 12)', numeric: true),
+                  _field(_length, 'طول القضيب بالمتر', numeric: true, helper: 'الطول الافتراضي 12 متر ويمكن تغييره'),
+                ] else
+                  _field(_pieceWeight, 'وزن القطعة الواحدة بالكيلوغرام', numeric: true,
+                    helper: 'أدخل الوزن الحقيقي حسب مقاس وسماكة الأنبوب أو المقطع أو الصفيحة'),
+                const SizedBox(height: 2),
+                const Text('سيحوّل البرنامج الوزن تلقائياً إلى عدد قضبان/قطع ويضيف الناتج إلى المخزون.',
+                  style: TextStyle(fontSize: 11, color: BatiProTheme.green)),
+              ] else ...[
+                _field(_quantity, 'الكمية', numeric: true),
               ],
-            ),
+              Row(children: [
+                Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
+                const SizedBox(width: 8),
+                Expanded(child: _field(_purchasePrice, 'سعر الشراء للقضيب/الوحدة', numeric: true)),
+              ]),
+              _field(_salePrice, 'سعر البيع للقضيب/الوحدة', numeric: true),
+              if (_isSteel)
+                const Text('وزن القضيب الدائري يُحسب بالقطر والطول وكثافة الحديد 7850 كغ/م³. الأنواع ذات المقاطع المختلفة تعتمد وزن القطعة الذي تدخله.',
+                  style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.4)),
+            ]),
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('إلغاء'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('حفظ')),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
+        FilledButton(onPressed: _save, child: const Text('حفظ المخزون')),
       ],
     );
   }
