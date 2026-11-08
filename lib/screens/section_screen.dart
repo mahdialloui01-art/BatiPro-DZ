@@ -36,7 +36,7 @@ class _SectionScreenState extends State<SectionScreen> {
           _FieldSpec('supplier', 'المورد'),
           _FieldSpec('quantity', 'الكمية المشتراة', number: true),
           _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
-          _FieldSpec('diameterMm', 'القطر بالملم (للتسليح والدائري المصمت)', number: true, optional: true),
+          _FieldSpec('diameterMm', 'مقاس الحديد T بالملم (T8، T10، T12، T14، T16، T20، T25، T32)', number: true, optional: true),
           _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
           _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
           _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
@@ -753,7 +753,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                     : TextFormField(
                         controller: _controllers[field.key],
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-                        decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'مثال: 8 أو 10 أو 12 أو 14 أو 16 أو 20 أو 25 أو 32' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
+                        decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'أدخل الرقم فقط: 8 لـ T8، 10 لـ T10، 14 لـ T14، 16 لـ T16، أو أي قطر آخر' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
                         validator: (value) {
                           if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
                           if (field.optional && (value == null || value.trim().isEmpty)) return null;
