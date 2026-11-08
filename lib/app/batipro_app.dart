@@ -3,6 +3,7 @@ import 'app_theme.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/inventory_screen.dart';
+import '../screens/sales_screen.dart';
 
 class BatiProApp extends StatelessWidget {
   const BatiProApp({super.key});
@@ -47,6 +48,7 @@ class _AppShellState extends State<AppShell> {
   Widget _page() {
     if (selected == 0) return const DashboardScreen();
     if (selected == 1) return const InventoryScreen();
+    if (selected == 2) return const SalesScreen();
     return SectionScreen(title: sections[selected].label, icon: sections[selected].icon);
   }
 
