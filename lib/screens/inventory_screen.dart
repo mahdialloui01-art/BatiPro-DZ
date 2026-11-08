@@ -198,7 +198,29 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                   )),
                 ]),
                 if (_usesDiameter) ...[
-                  _field(_diameter, 'قطر القضيب بالملم (مثلاً 8 أو 10 أو 12)', numeric: true),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: DropdownButtonFormField<String>(
+                      value: const ['8', '10', '12', '14', '16', '20', '25', '32'].contains(_diameter.text)
+                          ? _diameter.text : '12',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'مقاس حديد التسليح',
+                        helperText: 'اختر T8 أو T10 أو T12 أو T14 أو T16 أو T20 أو T25 أو T32',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: '8', child: Text('T8 — قطر 8 ملم')),
+                        DropdownMenuItem(value: '10', child: Text('T10 — قطر 10 ملم')),
+                        DropdownMenuItem(value: '12', child: Text('T12 — قطر 12 ملم')),
+                        DropdownMenuItem(value: '14', child: Text('T14 — قطر 14 ملم')),
+                        DropdownMenuItem(value: '16', child: Text('T16 — قطر 16 ملم')),
+                        DropdownMenuItem(value: '20', child: Text('T20 — قطر 20 ملم')),
+                        DropdownMenuItem(value: '25', child: Text('T25 — قطر 25 ملم')),
+                        DropdownMenuItem(value: '32', child: Text('T32 — قطر 32 ملم')),
+                      ],
+                      onChanged: (v) => setState(() => _diameter.text = v ?? '12'),
+                    ),
+                  ),
                   _field(_length, 'طول القضيب بالمتر', numeric: true, helper: 'الطول الافتراضي 12 متر ويمكن تغييره'),
                 ] else
                   _field(_pieceWeight, 'وزن القطعة الواحدة بالكيلوغرام', numeric: true,
