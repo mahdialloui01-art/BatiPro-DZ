@@ -147,7 +147,7 @@ class _SaleEditorState extends State<_SaleEditor>{
     final p=_product;if(p==null||quantity<=0||price<0)return;
     final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.quantity);
     if(old+quantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('المتوفر من '+p.name+': '+p.quantity.toString()+' '+p.unit+' فقط.')));return;}
-    setState(()=>cart.add(_SaleLine(p,quantity,price)));
+    setState((){cart.add(_SaleLine(p,quantity,price));if(method=='نقداً')paid.text=_total.toStringAsFixed(2);});
   }
   void _save(){
     if(!form.currentState!.validate())return;
