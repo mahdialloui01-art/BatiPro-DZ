@@ -22,7 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _purchaseCount = 0;
   List<Map<String, dynamic>> _lowStock = [];
   List<Map<String, dynamic>> _recentSales = [];
-  List<({String label, double amount})> _weeklySales = [];
+  List<Map<String, dynamic>> _sales = [];
 
   @override
   void initState() {
@@ -97,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _purchaseCount = purchases.length;
       _lowStock = low;
       _recentSales = sales.take(3).toList();
-      _weeklySales = weekly;
+      _sales = sales;
       _loading = false;
     });
   }
@@ -149,7 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 23),
                   if (!compact)
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Expanded(flex: 3, child: _SalesPanel(values: _weeklySales)),
+                      Expanded(flex: 3, child: _SalesPanel(sales: _sales)),
                       const SizedBox(width: 14),
                       Expanded(flex: 2, child: _AlertsPanel(items: _lowStock)),
                     ])
@@ -169,55 +169,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class _SalesPanel extends StatelessWidget {
-  final List<({String label, double amount})> values;
-  const _SalesPanel({required this.values});
-
+class _SalesPanel extends StatefulWidget {
+  final List<Map<String, dynamic>> sales;
+  const _SalesPanel({required this.sales});
+  @override
+  State<_SalesPanel> createState() => _SalesPanelState();
+}
+class _SalesPanelState extends State<_SalesPanel> {
+  String _period = 'الأسبوع';
+  DateTime _dateOf(Map<String, dynamic> row) {
+    try { return DateTime.parse((row['date'] ?? '').toString()); }
+    catch (_) { return DateTime.fromMillisecondsSinceEpoch(0); }
+  }
+  double _amount(Map<String, dynamic> row) => (row['total'] as num?)?.toDouble() ?? 0;
+  List<({String label, double amount, int invoices, bool showLabel})> _buckets(DateTime now) {
+    final result = <({String label, double amount, int invoices, bool showLabel})>[];
+    void add(String label, DateTime start, DateTime end, {bool showLabel = true}) {
+      final matching = widget.sales.where((row) {
+        final date = _dateOf(row);
+        return !date.isBefore(start) && date.isBefore(end);
+      }).toList();
+      result.add((label: label, amount: matching.fold<double>(0, (sum, row) => sum + _amount(row)), invoices: matching.length, showLabel: showLabel));
+    }
+    if (_period == 'اليوم') {
+      for (var hour = 0; hour < 24; hour += 3) {
+        add(hour.toString().padLeft(2, '0'), DateTime(now.year, now.month, now.day, hour), DateTime(now.year, now.month, now.day, hour + 3));
+      }
+    } else if (_period == 'الأسبوع') {
+      const days = ['اثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت', 'أحد'];
+      final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+      for (var i = 0; i < 7; i++) {
+        final start = monday.add(Duration(days: i));
+        add(days[i], start, start.add(const Duration(days: 1)));
+      }
+    } else if (_period == 'الشهر') {
+      final days = DateTime(now.year, now.month + 1, 0).day;
+      for (var i = 1; i <= days; i++) {
+        final start = DateTime(now.year, now.month, i);
+        add('$i', start, start.add(const Duration(days: 1)), showLabel: i == 1 || i % 5 == 0 || i == days);
+      }
+    } else {
+      const months = ['جان', 'فيف', 'مار', 'أفر', 'ماي', 'جوان', 'جويل', 'أوت', 'سبت', 'أكت', 'نوف', 'ديس'];
+      for (var month = 1; month <= 12; month++) {
+        add(months[month - 1], DateTime(now.year, month, 1), DateTime(now.year, month + 1, 1));
+      }
+    }
+    return result;
+  }
+  String _money(double value) => '\${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
   @override
   Widget build(BuildContext context) {
-    final maxAmount = values.fold<double>(0, (max, item) => item.amount > max ? item.amount : max);
-    return Card(
-      child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('حركة المبيعات', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: BatiProTheme.ink)),
+    final buckets = _buckets(DateTime.now());
+    final total = buckets.fold<double>(0, (sum, item) => sum + item.amount);
+    final invoiceCount = buckets.fold<int>(0, (sum, item) => sum + item.invoices);
+    final maxAmount = buckets.fold<double>(0, (max, item) => item.amount > max ? item.amount : max);
+    final compact = MediaQuery.sizeOf(context).width < 650;
+    final slotWidth = _period == 'الشهر' ? 22.0 : 42.0;
+    return Card(child: Padding(
+      padding: EdgeInsets.all(compact ? 14 : 18),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('حركة المبيعات', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: BatiProTheme.ink)),
             SizedBox(height: 4),
-            Text('آخر 7 أيام', style: TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+            Text('تابع رقم معاملاتك حسب الفترة', style: TextStyle(fontSize: 10, color: BatiProTheme.muted)),
           ])),
-          Text('هذا الأسبوع', style: TextStyle(color: BatiProTheme.muted, fontSize: 10)),
+          const Icon(Icons.bar_chart_rounded, color: BatiProTheme.gold, size: 23),
         ]),
-        const SizedBox(height: 20),
-        SizedBox(height: 145, child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            for (var i = 0; i < values.length; i++)
-              _Bar(
-                day: values[i].label,
-                height: maxAmount <= 0 ? 5 : (values[i].amount / maxAmount * 116).clamp(5, 116).toDouble(),
-                active: i == values.length - 1,
-              ),
-          ],
+        const SizedBox(height: 14),
+        Wrap(spacing: 6, runSpacing: 6, children: ['اليوم', 'الأسبوع', 'الشهر', 'العام'].map((period) {
+          final selected = _period == period;
+          return ChoiceChip(
+            label: Text(period), selected: selected, showCheckmark: false,
+            visualDensity: VisualDensity.compact,
+            onSelected: (_) => setState(() => _period = period),
+            selectedColor: BatiProTheme.gold.withValues(alpha: .22),
+            labelStyle: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w800 : FontWeight.w500, color: BatiProTheme.ink),
+            side: BorderSide(color: selected ? BatiProTheme.gold : BatiProTheme.line),
+          );
+        }).toList()),
+        const SizedBox(height: 15),
+        Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('مجموع المبيعات • $_period', style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+              const SizedBox(height: 5),
+              FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                child: Text(_money(total), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: BatiProTheme.ink))),
+            ])),
+            Container(width: 1, height: 38, color: BatiProTheme.line),
+            const SizedBox(width: 13),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('الفواتير', style: TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+              const SizedBox(height: 5),
+              Text('$invoiceCount', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(
+          width: buckets.length * slotWidth < 280 ? 280 : buckets.length * slotWidth,
+          height: 151,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [for (final item in buckets)
+              SizedBox(width: slotWidth, child: _SalesBar(
+                label: item.label, amount: item.amount, maxAmount: maxAmount,
+                showLabel: item.showLabel, compactLabel: _period == 'الشهر',
+              )),
+            ],
+          ),
         )),
-      ])),
+        const SizedBox(height: 8),
+        const Row(children: [
+          Icon(Icons.info_outline, size: 13, color: BatiProTheme.muted),
+          SizedBox(width: 5),
+          Expanded(child: Text('القيم محسوبة من فواتير البيع المسجلة في الفترة المختارة.', style: TextStyle(fontSize: 9, color: BatiProTheme.muted))),
+        ]),
+      ]),
+    ));
+  }
+}
+class _SalesBar extends StatelessWidget {
+  final String label;
+  final double amount, maxAmount;
+  final bool showLabel, compactLabel;
+  const _SalesBar({required this.label, required this.amount, required this.maxAmount, required this.showLabel, required this.compactLabel});
+  @override
+  Widget build(BuildContext context) {
+    final barHeight = maxAmount <= 0 ? 4.0 : (amount / maxAmount * 91).clamp(4.0, 91.0).toDouble();
+    return Tooltip(
+      message: '$label • \${amount.toStringAsFixed(0)} دج',
+      child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+        SizedBox(height: 99, child: Align(alignment: Alignment.bottomCenter, child: Container(
+          width: compactLabel ? 10 : 19, height: barHeight,
+          decoration: BoxDecoration(color: amount > 0 ? BatiProTheme.gold : const Color(0xFFDCE5EA), borderRadius: const BorderRadius.vertical(top: Radius.circular(5))),
+        ))),
+        const SizedBox(height: 7),
+        SizedBox(height: 15, child: Text(showLabel ? label : '', maxLines: 1, style: const TextStyle(fontSize: 9, color: BatiProTheme.muted))),
+      ]),
     );
   }
 }
-
-class _Bar extends StatelessWidget {
-  final String day;
-  final double height;
-  final bool active;
-  const _Bar({required this.day, required this.height, this.active = false});
-
-  @override
-  Widget build(BuildContext context) => Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-    Container(width: 19, height: height, decoration: BoxDecoration(color: active ? BatiProTheme.gold : const Color(0xFFDCE5EA), borderRadius: const BorderRadius.vertical(top: Radius.circular(6)))),
-    const SizedBox(height: 8),
-    Text(day, style: const TextStyle(fontSize: 9, color: BatiProTheme.muted)),
-  ]);
-}
-
 class _AlertsPanel extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   const _AlertsPanel({required this.items});
