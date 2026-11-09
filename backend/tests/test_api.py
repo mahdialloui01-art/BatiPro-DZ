@@ -404,6 +404,10 @@ def test_continuous_sync_is_idempotent_conflict_safe_and_pullable(monkeypatch):
         result = pushed.json()
         assert result["has_conflicts"] is False
         assert result["accepted"][0]["revision"] == 1
+        snapshot = client.get("/sync/snapshot", headers=headers)
+        assert snapshot.status_code == 200, snapshot.text
+        assert snapshot.json()["cursor"] == result["accepted"][0]["event_id"]
+        assert snapshot.json()["documents"][0]["key"] == "batipro_products_v1"
         duplicate = client.post("/sync/push", headers=headers, json=payload)
         assert duplicate.status_code == 200, duplicate.text
         assert duplicate.json()["accepted"][0]["duplicate"] is True
