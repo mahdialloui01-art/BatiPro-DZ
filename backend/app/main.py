@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BatiPro DZ API", version="0.2.0",
-              description="Authenticated service layer for BatiPro DZ Windows clients.")
+              description="Authenticated service layer for BatiPro DZ Windows clients.", lifespan=lifespan)
 
 
 def _pool():
