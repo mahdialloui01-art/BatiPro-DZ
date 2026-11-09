@@ -29,10 +29,10 @@ void main() {
   });
 
   testWidgets('Inventory shows the four requested groups and rebar sizes', (tester) async {
-    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.physicalSize = const Size(800, 900);
     tester.view.devicePixelRatio = 1;
     await openApp(tester);
-    await tester.tap(find.text('المنتجات والمخزون').first);
+    await tester.tap(find.text('المخزون').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('أقسام المخزون'), findsOneWidget);
