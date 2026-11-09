@@ -10,21 +10,13 @@ class CloudSyncService {
   CloudSyncService._();
 
   static const _metadataKey = '__batipro_sync_meta_v1';
-  static const _deviceKey = 'batipro_sync_device_id_v1';
-
   static String _newId() {
     final random = Random.secure();
     return List<int>.generate(16, (_) => random.nextInt(256))
         .map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  static Future<String> _deviceId(AppStorage storage) async {
-    final existing = storage.getString(_deviceKey);
-    if (existing != null && existing.length >= 8) return existing;
-    final created = _newId();
-    await storage.setString(_deviceKey, created);
-    return created;
-  }
+  static Future<String> _deviceId() => ApiClient.instance.getOrCreateDeviceId();
 
   static Map<String, dynamic> _readMetadata(AppStorage storage) {
     final raw = storage.getString(_metadataKey);
@@ -38,7 +30,7 @@ class CloudSyncService {
     final api = ApiClient.instance;
     if (!api.isAuthenticated) throw StateError('سجّل الدخول إلى خادم PostgreSQL أولاً.');
     final storage = await AppStorage.getInstance();
-    final deviceId = await _deviceId(storage);
+    final deviceId = await _deviceId();
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
     var cursor = (metadata['cursor'] as num?)?.toInt() ?? 0;
@@ -77,8 +69,8 @@ class CloudSyncService {
     }
 
     var pushed = 0;
-    for (var offset = 0; offset < mutations.length; offset += 100) {
-      final batch = mutations.skip(offset).take(100).toList(growable: false);
+    for (var offset = 0; offset < mutations.length; offset += 10) {
+      final batch = mutations.skip(offset).take(10).toList(growable: false);
       final response = await api.pushSyncChanges(deviceId: deviceId, mutations: batch);
       final accepted = (response['accepted'] as List? ?? const [])
           .map((item) => Map<String, dynamic>.from(item as Map));
