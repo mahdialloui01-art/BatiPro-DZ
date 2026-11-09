@@ -30,6 +30,23 @@ class CloudSyncService {
 
 
 
+
+  static Future<void> _saveMetadata(
+    AppStorage storage,
+    int cursor,
+    Map<String, dynamic> documents, {
+    Map<String, dynamic>? keepLocalUntil,
+    List<Map<String, dynamic>>? conflicts,
+  }) async {
+    final data = <String, dynamic>{
+      'cursor': cursor,
+      'documents': documents,
+      'keep_local_until': keepLocalUntil ?? <String, dynamic>{},
+      if (conflicts != null && conflicts.isNotEmpty) 'conflicts': conflicts,
+    };
+    await storage.setString(_metadataKey, jsonEncode(data));
+  }
+
   static String? _mergeRecordArrays(String? baseJson, String? localJson, String? serverJson) {
     if (localJson == null || serverJson == null) return null;
     try {
@@ -95,6 +112,7 @@ class CloudSyncService {
     final storage = await AppStorage.getInstance();
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
+    final keepLocalUntil = Map<String, dynamic>.from(metadata['keep_local_until'] as Map? ?? {});
     final conflicts = (metadata['conflicts'] as List? ?? const [])
         .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     final index = conflicts.indexWhere((item) => item['key'] == key);
@@ -102,11 +120,17 @@ class CloudSyncService {
     final conflict = conflicts.removeAt(index);
     final serverValue = conflict['server_value'] as String?;
     final serverDeleted = conflict['server_deleted'] == true;
+    final serverRevision = (conflict['server_revision'] as num).toInt();
     documents[key] = {
-      'revision': (conflict['server_revision'] as num).toInt(),
+      'revision': serverRevision,
       'value': serverValue,
       'deleted': serverDeleted,
     };
+    if (keepLocal) {
+      keepLocalUntil[key] = serverRevision;
+    } else {
+      keepLocalUntil.remove(key);
+    }
     if (!keepLocal) {
       if (serverDeleted) {
         await storage.remove(key);
@@ -114,11 +138,13 @@ class CloudSyncService {
         await storage.setString(key, serverValue);
       }
     }
-    await storage.setString(_metadataKey, jsonEncode({
-      'cursor': metadata['cursor'] ?? 0,
-      'documents': documents,
-      'conflicts': conflicts,
-    }));
+    await _saveMetadata(
+      storage,
+      (metadata['cursor'] as num?)?.toInt() ?? 0,
+      documents,
+      keepLocalUntil: keepLocalUntil,
+      conflicts: conflicts,
+    );
   }
 
   static Future<Map<String, dynamic>> synchronize() async {
@@ -131,6 +157,7 @@ class CloudSyncService {
     final deviceId = await _deviceId();
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
+    final keepLocalUntil = Map<String, dynamic>.from(metadata['keep_local_until'] as Map? ?? {});
     if ((metadata['conflicts'] as List? ?? const []).isNotEmpty) {
       throw StateError('يوجد تعارض محفوظ. اختر النسخة التي تريد الاحتفاظ بها أولاً.');
     }
@@ -174,8 +201,7 @@ class CloudSyncService {
         pulled++;
       }
       cursor = (snapshot['cursor'] as num?)?.toInt() ?? 0;
-      await storage.setString(_metadataKey,
-          jsonEncode({'cursor': cursor, 'documents': documents}));
+      await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil);
     }
 
     bool eligible(String key) => key.startsWith('batipro_') &&
@@ -226,7 +252,7 @@ class CloudSyncService {
         };
         pushed++;
       }
-      await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
+      await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil);
       final conflicts = (response['conflicts'] as List? ?? const []);
       if (conflicts.isNotEmpty) {
         final pending = <Map<String, dynamic>>[];
@@ -246,11 +272,13 @@ class CloudSyncService {
           );
           if (merged != null && !serverDeleted) {
             await storage.setString(key, merged);
+            final serverRevision = (conflict['server_revision'] as num).toInt();
             documents[key] = {
-              'revision': conflict['server_revision'],
+              'revision': serverRevision,
               'value': serverValue,
               'deleted': false,
             };
+            keepLocalUntil[key] = serverRevision;
             mergedAny = true;
           } else {
             final localValue = storage.getString(key);
@@ -265,10 +293,7 @@ class CloudSyncService {
           }
         }
         if (pending.isNotEmpty) metadata['conflicts'] = pending;
-        await storage.setString(_metadataKey, jsonEncode({
-          'cursor': cursor, 'documents': documents,
-          if (pending.isNotEmpty) 'conflicts': pending,
-        }));
+        await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil, conflicts: pending);
         if (mergedAny && pending.isEmpty) {
           throw StateError('دمجنا السجلات الجديدة غير المتعارضة. أعد المزامنة لإرسال الدمج إلى الخادم.');
         }
@@ -292,6 +317,13 @@ class CloudSyncService {
             ? Map<String, dynamic>.from(documents[key] as Map)
             : <String, dynamic>{'revision': 0, 'value': null, 'deleted': true};
         final localValue = storage.getString(key);
+        final keepUntil = (keepLocalUntil[key] as num?)?.toInt();
+        if (keepUntil != null && revision <= keepUntil) {
+          processedCursor = (change['event_id'] as num).toInt();
+          if (revision >= keepUntil) keepLocalUntil.remove(key);
+          pulled++;
+          continue;
+        }
         final localMatchesBase = known['deleted'] == true
             ? localValue == null : localValue == known['value'];
         if (change['device_id'] != deviceId && !localMatchesBase) {
@@ -317,9 +349,7 @@ class CloudSyncService {
             });
           }
           metadata['conflicts'] = pending;
-          await storage.setString(_metadataKey, jsonEncode({
-            'cursor': processedCursor, 'documents': documents, 'conflicts': pending,
-          }));
+          await _saveMetadata(storage, processedCursor, documents, keepLocalUntil: keepLocalUntil, conflicts: pending);
           throw StateError('تعارض أثناء استقبال "$key". اختر النسخة التي تريد الاحتفاظ بها.');
         }
         if (deleted) {
