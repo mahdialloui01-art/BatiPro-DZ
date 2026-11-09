@@ -59,6 +59,13 @@ class InitialSyncService {
     final previous = storage.getString(resultKey);
     if (previous != null) {
       final result = Map<String, dynamic>.from(jsonDecode(previous) as Map);
+      final idMap = result['id_map'];
+      if (idMap is Map) {
+        await storage.setString(
+          'batipro_sync_id_map_v1_' + base64Url.encode(utf8.encode(email)),
+          jsonEncode(idMap),
+        );
+      }
       return <String, dynamic>{...result, 'already_imported_on_device': true};
     }
 
