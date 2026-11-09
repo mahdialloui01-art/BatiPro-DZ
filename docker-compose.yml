@@ -31,11 +31,11 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >-
       while true; do
-        file="/backups/batipro-$(date -u +%Y%m%dT%H%M%SZ).dump";
+        file="/backups/batipro-$$(date -u +%Y%m%dT%H%M%SZ).dump";
         if pg_dump -Fc -f "${file}"; then
           find /backups -type f -name 'batipro-*.dump' -mtime +7 -delete;
         else
-          rm -f "$file";
+          rm -f "$$file";
         fi;
         sleep 86400;
       done
