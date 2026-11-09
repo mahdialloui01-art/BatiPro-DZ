@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../data/app_storage.dart';
 import '../app/app_theme.dart';
 
 class _FieldSpec {
@@ -113,7 +113,7 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw != null) {
       try {
@@ -150,7 +150,7 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     await prefs.setString(_storageKey, jsonEncode(_items));
   }
 
@@ -204,7 +204,7 @@ class _SectionScreenState extends State<SectionScreen> {
   Future<void> _ensureSupplier(String name) async {
     final clean = name.trim();
     if (clean.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final raw = prefs.getString('batipro_suppliers_v1');
     final suppliers = raw == null ? <Map<String, dynamic>>[] :
         (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -224,7 +224,7 @@ class _SectionScreenState extends State<SectionScreen> {
 
   Future<void> _applyPurchaseToStock(
       Map<String, dynamic> purchase, {Map<String, dynamic>? old}) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final raw = prefs.getString('batipro_inventory_v1');
     final stock = raw == null
         ? <Map<String, dynamic>>[]
@@ -347,7 +347,7 @@ class _SectionScreenState extends State<SectionScreen> {
     );
     if (yes != true) return;
     if (_kind == 'purchases') {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await AppStorage.getInstance();
       final raw = prefs.getString('batipro_inventory_v1');
       if (raw != null) {
         final stock = (jsonDecode(raw) as List)
@@ -689,7 +689,7 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   Future<Map<String, double>> _readReportTotals() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     List<Map<String, dynamic>> read(String key) {
       final raw = prefs.getString(key);
       if (raw == null) return [];
@@ -1009,7 +1009,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
@@ -1018,7 +1018,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     await prefs.setString('batipro_shop_name', _name.text.trim());
     await prefs.setString('batipro_shop_phone', _phone.text.trim());
     await prefs.setString('batipro_shop_address', _address.text.trim());
