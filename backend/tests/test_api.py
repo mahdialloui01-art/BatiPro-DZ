@@ -1,6 +1,8 @@
 import os
 from uuid import uuid4
 
+import psycopg
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -233,4 +235,47 @@ def test_rebar_purchase_converts_weight_to_piece_count_on_server(monkeypatch):
         steel = [row for row in stock if row["product_id"] == product.json()["id"]]
         assert len(steel) == 1
         assert steel[0]["quantity"] == "10.000"
+
+def test_read_only_role_and_membership_revocation_are_enforced(monkeypatch):
+    monkeypatch.setenv("BATIPRO_TOKEN_SECRET", "test-token-secret-that-is-at-least-32-bytes")
+    monkeypatch.setenv("BATIPRO_BOOTSTRAP_SECRET", "bootstrap-secret-for-integration-tests")
+    email = f"viewer-{uuid4().hex}@example.test"
+
+    with TestClient(app) as client:
+        registered = client.post("/auth/register", json={
+            "email": email,
+            "password": "Strong-test-password-123",
+            "display_name": "Viewer",
+            "organization_name": "Viewer Store",
+            "bootstrap_secret": "bootstrap-secret-for-integration-tests",
+        })
+        assert registered.status_code == 201
+        token_data = registered.json()
+        headers = {"Authorization": f"Bearer {token_data['access_token']}"}
+
+        with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE organization_members SET role='viewer' WHERE user_id=%s AND organization_id=%s",
+                (token_data["user_id"], token_data["organization_id"]),
+            )
+
+        profile = client.get("/me", headers=headers)
+        assert profile.status_code == 200
+        assert profile.json()["role"] == "viewer"
+
+        denied = client.post("/products", headers=headers, json={
+            "name": "محاولة إضافة",
+            "category": "مواد البناء",
+            "base_unit": "كيس",
+        })
+        assert denied.status_code == 403
+
+        with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM organization_members WHERE user_id=%s AND organization_id=%s",
+                (token_data["user_id"], token_data["organization_id"]),
+            )
+
+        revoked = client.get("/products", headers=headers)
+        assert revoked.status_code == 401
 
