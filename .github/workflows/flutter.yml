@@ -35,7 +35,7 @@ jobs:
                   android:name="${applicationName}"
                   android:icon="@mipmap/ic_launcher">
                   <activity
-                      android:name="io.flutter.embedding.android.FlutterActivity"
+                      android:name=".MainActivity"
                       android:exported="true"
                       android:launchMode="singleTop"
                       android:theme="@style/LaunchTheme"
@@ -74,7 +74,10 @@ jobs:
           echo "=== ZIP integrity ==="
           unzip -t "$APK" | tail -n 2
           echo "=== Android package metadata ==="
-          "$TOOLS_DIR/aapt" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|native-code:)"
+          BADGING="$("$TOOLS_DIR/aapt" dump badging "$APK")"
+          printf '%s\\n' "$BADGING" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)"
+          printf '%s\\n' "$BADGING" | grep -q "^package: name='com.example.batipro_dz'"
+          printf '%s\\n' "$BADGING" | grep -q "^launchable-activity: name='com.example.batipro_dz.MainActivity'"
           echo "=== APK signature verification ==="
           "$TOOLS_DIR/apksigner" verify --verbose --print-certs "$APK"
       - name: Test installation on Android emulator
@@ -84,7 +87,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: adb wait-for-device && adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done' && adb install build/app/outputs/flutter-apk/app-release.apk && adb shell am force-stop com.example.batipro_dz && adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.example.batipro_dz && sleep 5 && adb shell pidof com.example.batipro_dz
+          script: adb wait-for-device && adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done' && adb install build/app/outputs/flutter-apk/app-release.apk && adb shell am force-stop com.example.batipro_dz && adb shell am start -W -n com.example.batipro_dz/.MainActivity && sleep 5 && adb shell pidof com.example.batipro_dz
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
