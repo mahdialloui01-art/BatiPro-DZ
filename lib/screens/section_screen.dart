@@ -261,8 +261,6 @@ class _SectionScreenState extends State<SectionScreen> {
       }
 
       if (index < 0 && quantityDelta > 0) {
-        final isSteel = source != null &&
-            (source['steelType'] ?? 'مواد عادية').toString() != 'مواد عادية';
         final unit = (source?['stockUnit'] ?? source?['inputUnit'] ?? 'وحدة').toString();
         stock.insert(0, {
           'id': DateTime.now().microsecondsSinceEpoch.toString(),
