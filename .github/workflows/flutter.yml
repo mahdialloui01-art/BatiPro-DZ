@@ -53,9 +53,8 @@ jobs:
           script: |
             set -euo pipefail
             APK="build/app/outputs/flutter-apk/app-release.apk"
-            TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-            PACKAGE="$("$TOOLS_DIR/aapt" dump badging "$APK" | awk -F"'" '/^package: name=/{print $2; exit}')"
-            test -n "$PACKAGE"
+            PACKAGE="com.example.batipro_dz"
+            test -f "$APK"
             echo "Installing $PACKAGE"
             adb wait-for-device
             adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
