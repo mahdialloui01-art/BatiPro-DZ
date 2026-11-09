@@ -40,4 +40,6 @@ jobs:
         run: python backend/scripts/migrate.py
       - name: Run API and schema tests
         working-directory: backend
+        env:
+          PYTHONPATH: .
         run: pytest -q
