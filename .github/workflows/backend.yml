@@ -38,6 +38,8 @@ jobs:
         run: pip install -r backend/requirements.txt
       - name: Apply PostgreSQL schema
         run: python backend/scripts/migrate.py
+      - name: Validate Docker Compose configuration
+        run: docker compose --env-file .env.example config --quiet
       - name: Run API and schema tests
         working-directory: backend
         env:
