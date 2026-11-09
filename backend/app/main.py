@@ -77,7 +77,7 @@ def _token_for(user_id: str, organization_id: str) -> str:
     return signing_input + "." + signature
 
 
-def _current_user(authorization: str | None = Header(default=None)):
+async def _current_user(authorization: str | None = Header(default=None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
     parts = authorization[7:].split(".")
@@ -94,9 +94,23 @@ def _current_user(authorization: str | None = Header(default=None)):
             raise ValueError("expired")
         UUID(payload["sub"])
         UUID(payload["org"])
-        return {"user_id": payload["sub"], "organization_id": payload["org"]}
+        async with _pool().connection() as connection:
+            membership = await (await connection.execute(
+                """SELECT om.role FROM organization_members om
+                   JOIN users u ON u.id=om.user_id
+                   WHERE om.user_id=%s AND om.organization_id=%s AND u.is_active=TRUE""",
+                (payload["sub"],payload["org"]))).fetchone()
+        if membership is None:
+            raise HTTPException(status_code=401, detail="Account access has been revoked")
+        return {"user_id": payload["sub"], "organization_id": payload["org"], "role": membership[0]}
     except (ValueError, KeyError, TypeError, json.JSONDecodeError):
         raise HTTPException(status_code=401, detail="Invalid or expired access token")
+
+
+def _writer(user=Depends(_current_user)):
+    if user["role"] not in ("owner", "admin", "manager", "cashier"):
+        raise HTTPException(status_code=403, detail="Read-only account")
+    return user
 
 
 class RegisterRequest(BaseModel):
@@ -288,7 +302,7 @@ async def list_products(user=Depends(_current_user)):
 
 
 @app.post("/products", status_code=status.HTTP_201_CREATED, tags=["products"])
-async def create_product(body: ProductCreate, user=Depends(_current_user)):
+async def create_product(body: ProductCreate, user=Depends(_writer)):
     if body.tracking_mode == "piece" and body.piece_weight_kg is None:
         raise HTTPException(status_code=422, detail="piece_weight_kg is required for piece-tracked products")
     async with _pool().connection() as connection:
@@ -325,7 +339,7 @@ async def stock(user=Depends(_current_user)):
 
 
 @app.post("/stock/adjustments", status_code=status.HTTP_201_CREATED, tags=["inventory"])
-async def adjust_stock(body: StockAdjustment, user=Depends(_current_user)):
+async def adjust_stock(body: StockAdjustment, user=Depends(_writer)):
     if body.quantity_delta == 0:
         raise HTTPException(status_code=422, detail="quantity_delta cannot be zero")
     async with _pool().connection() as connection:
@@ -372,7 +386,7 @@ async def list_suppliers(user=Depends(_current_user)):
 
 
 @app.post("/suppliers", status_code=status.HTTP_201_CREATED, tags=["contacts"])
-async def create_supplier(body: ContactCreate, user=Depends(_current_user)):
+async def create_supplier(body: ContactCreate, user=Depends(_writer)):
     async with _pool().connection() as connection:
         row = await connection.execute(
             "INSERT INTO suppliers (organization_id,name,phone,address) VALUES (%s,%s,%s,%s) RETURNING id",
@@ -391,7 +405,7 @@ async def list_customers(user=Depends(_current_user)):
 
 
 @app.post("/customers", status_code=status.HTTP_201_CREATED, tags=["contacts"])
-async def create_customer(body: ContactCreate, user=Depends(_current_user)):
+async def create_customer(body: ContactCreate, user=Depends(_writer)):
     async with _pool().connection() as connection:
         row = await connection.execute(
             "INSERT INTO customers (organization_id,name,phone,address) VALUES (%s,%s,%s,%s) RETURNING id",
@@ -401,7 +415,7 @@ async def create_customer(body: ContactCreate, user=Depends(_current_user)):
 
 
 @app.post("/purchases", status_code=status.HTTP_201_CREATED, tags=["purchases"])
-async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
+async def create_purchase(body: PurchaseCreate, user=Depends(_writer)):
     for line in body.lines:
         expected_line_total = (line.entered_quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if line.line_total != expected_line_total:
@@ -493,7 +507,7 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
 
 
 @app.post("/sales", status_code=status.HTTP_201_CREATED, tags=["sales"])
-async def create_sale(body: SaleCreate, user=Depends(_current_user)):
+async def create_sale(body: SaleCreate, user=Depends(_writer)):
     for line in body.lines:
         expected_line_total = (line.quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if line.line_total != expected_line_total:
