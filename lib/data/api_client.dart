@@ -172,6 +172,34 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<Map<String, dynamic>> createSupplier(Map<String, dynamic> supplier) async {
+    final response = await http
+        .post(_uri('/suppliers'), headers: _headers, body: jsonEncode(supplier))
+        .timeout(const Duration(seconds: 20));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> createCustomer(Map<String, dynamic> customer) async {
+    final response = await http
+        .post(_uri('/customers'), headers: _headers, body: jsonEncode(customer))
+        .timeout(const Duration(seconds: 20));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> createPurchase(Map<String, dynamic> invoice) async {
+    final response = await http
+        .post(_uri('/purchases'), headers: _headers, body: jsonEncode(invoice))
+        .timeout(const Duration(seconds: 30));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> createSale(Map<String, dynamic> invoice) async {
+    final response = await http
+        .post(_uri('/sales'), headers: _headers, body: jsonEncode(invoice))
+        .timeout(const Duration(seconds: 30));
+    return _decode(response);
+  }
+
   Future<void> logout() async {
     _token = null;
     await _secure.delete(key: _tokenKey);
