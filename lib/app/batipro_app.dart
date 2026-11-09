@@ -130,11 +130,11 @@ class _Sidebar extends StatelessWidget {
                   child: const Icon(Icons.construction_rounded, color: BatiProTheme.ink, size: 27),
                 ),
                 const SizedBox(width: 12),
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('BatiPro DZ', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('BatiPro DZ', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                   SizedBox(height: 3),
-                  Text('GESTION • BÂTIMENT', style: TextStyle(color: Color(0xFFB8C6D0), fontSize: 9, letterSpacing: 1.2)),
-                ]),
+                  Text('GESTION • BÂTIMENT', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Color(0xFFB8C6D0), fontSize: 9, letterSpacing: 1.2)),
+                ])),
               ]),
             ),
             const Padding(
