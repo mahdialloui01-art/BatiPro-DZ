@@ -160,6 +160,13 @@ class AppStorage {
     _cache.addAll(values);
   }
 
+  static Future<void> clearAll() async {
+    final db = _database;
+    if (db == null) throw StateError('SQLite database is not initialized.');
+    await db.delete('app_data');
+    _cache.clear();
+  }
+
   Future<bool> remove(String key) async {
     final db = _database;
     if (db == null) throw StateError('SQLite database is not initialized.');
