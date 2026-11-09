@@ -10,7 +10,7 @@ import json
 import secrets
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg_pool import AsyncConnectionPool
 
@@ -914,7 +914,7 @@ async def push_sync_changes(body: SyncPushRequest, user=Depends(_writer)):
 
 @app.get("/sync/pull", tags=["synchronization"])
 async def pull_sync_changes(after: int = 0, limit: int = 200,
-                            device_id: str = Field(min_length=8, max_length=120),
+                            device_id: str = Query(min_length=8, max_length=120),
                             user=Depends(_current_user)):
     """Read an ordered change feed. The caller advances its cursor only after applying a page."""
     if after < 0 or limit < 1 or limit > 500:
