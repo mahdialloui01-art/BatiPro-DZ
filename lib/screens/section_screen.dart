@@ -1074,6 +1074,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       final account = await ApiClient.instance.me();
       if (mounted) setState(() => _apiStatus =
           'متصل: ${account['organization_name'] ?? account['email'] ?? 'الحساب'}');
+      await _runCloudSync();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم الاتصال بقاعدة PostgreSQL عبر API بنجاح.')));
     } catch (error) {
