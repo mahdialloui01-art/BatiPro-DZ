@@ -196,6 +196,20 @@ class SaleCreate(BaseModel):
 
 
 
+
+class SyncMutation(BaseModel):
+    mutation_id: str = Field(min_length=8, max_length=120)
+    key: str = Field(min_length=1, max_length=200)
+    value: str | None = Field(default=None, max_length=2_000_000)
+    deleted: bool = False
+    base_revision: int = Field(ge=0)
+
+
+class SyncPushRequest(BaseModel):
+    device_id: str = Field(min_length=8, max_length=120)
+    mutations: list[SyncMutation] = Field(min_length=1, max_length=500)
+
+
 class InitialSnapshot(BaseModel):
     device_id: str = Field(min_length=8, max_length=120)
     idempotency_key: str = Field(min_length=8, max_length=120)
@@ -828,3 +842,117 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                 (json.dumps(result),org_id,body.device_id,body.idempotency_key))
             return result
 
+
+
+@app.post("/sync/push", tags=["synchronization"])
+async def push_sync_changes(body: SyncPushRequest, user=Depends(_writer)):
+    """Apply offline mutations using per-document optimistic concurrency and idempotency."""
+    org_id = user["organization_id"]
+    accepted = []
+    conflicts = []
+    async with _pool().connection() as connection:
+        async with connection.transaction():
+            await connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (org_id + ":document-sync",))
+            await connection.execute(
+                """INSERT INTO sync_devices (organization_id,device_id)
+                   VALUES (%s,%s)
+                   ON CONFLICT (organization_id,device_id)
+                   DO UPDATE SET last_seen_at=now()""",
+                (org_id, body.device_id))
+            for mutation in body.mutations:
+                key = mutation.key.strip()
+                if not key.startswith("batipro_") or key.startswith("batipro_api_"):
+                    raise HTTPException(status_code=422, detail="Only application data keys may be synchronized")
+                previous_event = await (await connection.execute(
+                    """SELECT event_id,revision,is_deleted FROM sync_events
+                       WHERE organization_id=%s AND mutation_id=%s""",
+                    (org_id, mutation.mutation_id))).fetchone()
+                if previous_event is not None:
+                    accepted.append({"mutation_id": mutation.mutation_id,
+                                     "event_id": previous_event[0],
+                                     "revision": previous_event[1], "duplicate": True})
+                    continue
+                current = await (await connection.execute(
+                    """SELECT revision,document_value,is_deleted FROM sync_documents
+                       WHERE organization_id=%s AND document_key=%s FOR UPDATE""",
+                    (org_id, key))).fetchone()
+                current_revision = int(current[0]) if current else 0
+                if current_revision != mutation.base_revision:
+                    conflicts.append({
+                        "mutation_id": mutation.mutation_id, "key": key,
+                        "server_revision": current_revision,
+                        "server_value": current[1] if current else None,
+                        "server_deleted": bool(current[2]) if current else False,
+                    })
+                    continue
+                next_revision = current_revision + 1
+                value = None if mutation.deleted else mutation.value
+                if not mutation.deleted and value is None:
+                    raise HTTPException(status_code=422, detail="A non-deleted sync mutation requires a value")
+                await connection.execute(
+                    """INSERT INTO sync_documents
+                       (organization_id,document_key,document_value,revision,is_deleted,updated_by_device,updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,now())
+                       ON CONFLICT (organization_id,document_key) DO UPDATE SET
+                         document_value=EXCLUDED.document_value, revision=EXCLUDED.revision,
+                         is_deleted=EXCLUDED.is_deleted, updated_by_device=EXCLUDED.updated_by_device,
+                         updated_at=now()""",
+                    (org_id,key,value,next_revision,mutation.deleted,body.device_id))
+                event = await (await connection.execute(
+                    """INSERT INTO sync_events
+                       (organization_id,document_key,document_value,revision,is_deleted,device_id,mutation_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING event_id""",
+                    (org_id,key,value,next_revision,mutation.deleted,body.device_id,mutation.mutation_id)).fetchone()
+                accepted.append({"mutation_id": mutation.mutation_id,
+                                 "event_id": event[0], "revision": next_revision,
+                                 "duplicate": False})
+    return {"accepted": accepted, "conflicts": conflicts,
+            "has_conflicts": bool(conflicts)}
+
+
+@app.get("/sync/pull", tags=["synchronization"])
+async def pull_sync_changes(after: int = 0, limit: int = 200,
+                            device_id: str = Field(min_length=8, max_length=120),
+                            user=Depends(_current_user)):
+    """Read an ordered change feed. The caller advances its cursor only after applying a page."""
+    if after < 0 or limit < 1 or limit > 500:
+        raise HTTPException(status_code=422, detail="Invalid sync cursor or page size")
+    async with _pool().connection() as connection:
+        await connection.execute(
+            """INSERT INTO sync_devices (organization_id,device_id)
+               VALUES (%s,%s)
+               ON CONFLICT (organization_id,device_id)
+               DO UPDATE SET last_seen_at=now()""",
+            (user["organization_id"],device_id))
+        rows = await (await connection.execute(
+            """SELECT event_id,document_key,document_value,revision,is_deleted,device_id,mutation_id
+               FROM sync_events
+               WHERE organization_id=%s AND event_id>%s
+               ORDER BY event_id LIMIT %s""",
+            (user["organization_id"],after,limit))).fetchall()
+    changes = [{
+        "event_id": row[0], "key": row[1], "value": row[2],
+        "revision": row[3], "deleted": row[4],
+        "device_id": row[5], "mutation_id": row[6],
+    } for row in rows]
+    return {"changes": changes,
+            "next_cursor": changes[-1]["event_id"] if changes else after,
+            "has_more": len(changes) == limit}
+
+
+@app.get("/sync/status", tags=["synchronization"])
+async def sync_status(user=Depends(_current_user)):
+    async with _pool().connection() as connection:
+        row = await (await connection.execute(
+            """SELECT COUNT(*),COALESCE(MAX(event_id),0)
+               FROM sync_events WHERE organization_id=%s""",
+            (user["organization_id"],))).fetchone()
+        devices = await (await connection.execute(
+            """SELECT device_id,last_seen_at,last_pulled_event_id
+               FROM sync_devices WHERE organization_id=%s ORDER BY last_seen_at DESC""",
+            (user["organization_id"],))).fetchall()
+    return {"total_changes": row[0], "latest_event_id": row[1],
+            "devices": [{"device_id":d[0],"last_seen_at":d[1].isoformat(),
+                         "last_pulled_event_id":d[2]} for d in devices]}
