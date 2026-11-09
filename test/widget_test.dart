@@ -28,8 +28,10 @@ void main() {
   });
 
   testWidgets('Inventory shows the four requested groups and rebar sizes', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
     await openApp(tester);
-    await tester.tap(find.text('المخزون').last);
+    await tester.tap(find.text('المنتجات والمخزون').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('أقسام المخزون'), findsOneWidget);
@@ -42,6 +44,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('حديد تسليح T8'), findsOneWidget);
     expect(find.text('حديد تسليح T32'), findsOneWidget);
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
   });
 
   testWidgets('Dashboard sales chart switches between day, week, month and year', (tester) async {
