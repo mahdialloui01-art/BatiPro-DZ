@@ -10,6 +10,8 @@ class CloudSyncService {
   CloudSyncService._();
 
   static const _metadataKey = '__batipro_sync_meta_v1';
+  static bool _isRunning = false;
+  static bool get isRunning => _isRunning;
   static String _newId() {
     final random = Random.secure();
     return List<int>.generate(16, (_) => random.nextInt(256))
@@ -27,6 +29,9 @@ class CloudSyncService {
   }
 
   static Future<Map<String, dynamic>> synchronize() async {
+    if (_isRunning) throw StateError('المزامنة جارية بالفعل.');
+    _isRunning = true;
+    try {
     final api = ApiClient.instance;
     if (!api.isAuthenticated) throw StateError('سجّل الدخول إلى خادم PostgreSQL أولاً.');
     final storage = await AppStorage.getInstance();
@@ -166,5 +171,8 @@ class CloudSyncService {
 
     await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
     return {'pushed': pushed, 'pulled': pulled, 'cursor': cursor, 'device_id': deviceId};
+    } finally {
+      _isRunning = false;
+    }
   }
 }
