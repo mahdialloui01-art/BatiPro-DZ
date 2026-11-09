@@ -763,11 +763,16 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                 paid=Decimal(str(item.get("paid",0)))
                 if not lines or total<0 or paid<0 or paid>total:
                     raise HTTPException(status_code=422,detail="Invalid historical sales invoice")
+                sales_date_text=str(item.get("date",""))
+                try:
+                    sales_date=datetime.fromisoformat(sales_date_text.replace("Z","+00:00")) if sales_date_text else datetime.now(timezone.utc)
+                except ValueError:
+                    raise HTTPException(status_code=422,detail="Invalid historical sales invoice date")
                 invoice=await (await connection.execute(
                     """INSERT INTO sales_invoices
-                       (organization_id,warehouse_id,customer_id,invoice_number,subtotal,total,paid,notes)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (org_id,warehouse_id,customer_id,invoice_number,subtotal,total,paid,
+                       (organization_id,warehouse_id,customer_id,invoice_number,invoice_date,subtotal,total,paid,notes)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (org_id,warehouse_id,customer_id,invoice_number,sales_date,subtotal,total,paid,
                      "Imported legacy invoice; stock is represented by opening snapshot."))).fetchone()
                 for line in lines:
                     local_product=str(line.get("productId",""))
