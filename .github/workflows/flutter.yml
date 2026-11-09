@@ -91,7 +91,7 @@ jobs:
             set -eu
             adb wait-for-device
             boot_wait=0
-            until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')" = "1" ]; do
+            until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
               sleep 3
               boot_wait=$((boot_wait + 3))
               if [ "$boot_wait" -ge 600 ]; then
@@ -114,7 +114,7 @@ jobs:
             app_wait=0
             app_pid=""
             until [ -n "$app_pid" ]; do
-              app_pid="$(adb shell pidof com.example.batipro_dz 2>/dev/null | tr -d '\\r' || true)"
+              app_pid="$(adb shell pidof com.example.batipro_dz 2>/dev/null | tr -d '\r' || true)"
               sleep 2
               app_wait=$((app_wait + 2))
               if [ "$app_wait" -ge 30 ]; then
