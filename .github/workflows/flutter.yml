@@ -50,28 +50,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: |
-            set -euo pipefail
-            APK="build/app/outputs/flutter-apk/app-release.apk"
-            PACKAGE="com.example.batipro_dz"
-            test -f "$APK"
-            echo "Installing $PACKAGE"
-            adb wait-for-device
-            adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
-            adb install "$APK"
-            echo "Starting app through Android Activity Manager (no Monkey process)"
-            adb shell am force-stop "$PACKAGE" || true
-            adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$PACKAGE"
-            for attempt in 1 2 3 4 5 6 7 8 9 10; do
-              if adb shell pidof "$PACKAGE"; then
-                echo "App process is running"
-                exit 0
-              fi
-              sleep 2
-            done
-            echo "App did not remain running; recent app logs:"
-            adb logcat -d -t 500 | grep -E "$PACKAGE|FATAL EXCEPTION|AndroidRuntime" | tail -n 120 || true
-            exit 1
+          script: adb wait-for-device && adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done' && adb install build/app/outputs/flutter-apk/app-release.apk && adb shell am force-stop com.example.batipro_dz && adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.example.batipro_dz && sleep 5 && adb shell pidof com.example.batipro_dz
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
