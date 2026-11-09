@@ -354,8 +354,19 @@ class _SectionScreenState extends State<SectionScreen> {
         final stock = (jsonDecode(raw) as List)
             .map((e) => Map<String, dynamic>.from(e as Map)).toList();
         final name = (item['product'] ?? '').toString().trim().toLowerCase();
-        final index = stock.indexWhere((p) =>
-            (p['name'] ?? '').toString().trim().toLowerCase() == name);
+        final steelType = (item['steelType'] ?? 'مواد عادية').toString();
+        final diameter = (item['diameterMm'] as num?)?.toDouble() ?? 12;
+        final category = (item['inventoryCategory'] ??
+            (steelType != 'مواد عادية'
+                ? (steelType == 'حديد تسليح' ? 'حديد تسليح T${diameter.round()}' : steelType)
+                : item['category'] ?? 'مواد البناء')).toString();
+        var index = stock.indexWhere((p) =>
+            (p['name'] ?? '').toString().trim().toLowerCase() == name &&
+            (p['category'] ?? 'مواد البناء').toString() == category);
+        if (index < 0 && item['inventoryCategory'] == null) {
+          index = stock.indexWhere((p) =>
+              (p['name'] ?? '').toString().trim().toLowerCase() == name);
+        }
         if (index >= 0) {
           final product = stock[index];
           final current = (product['quantity'] as num).toDouble();

@@ -440,7 +440,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           const SizedBox(height:12),
           Row(children:[
             Expanded(child:Text('أنواع ${_activeGroup!}',style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
-            TextButton(onPressed:()=>setState(()=>{_activeGroup=null;_filter='الكل';}),child:const Text('إظهار الكل')),
+            TextButton(onPressed:()=>setState((){_activeGroup=null;_filter='الكل';}),child:const Text('إظهار الكل')),
           ]),
           Wrap(spacing:7,runSpacing:7,children:[
             ChoiceChip(label:const Text('كل الأنواع'),selected:_filter=='الكل',onSelected:(_)=>setState(()=>_filter='الكل')),
