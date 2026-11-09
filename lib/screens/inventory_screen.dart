@@ -275,6 +275,35 @@ class _InventoryScreenState extends State<InventoryScreen> {
   List<_Product> _products = [];
   bool _loading = true;
   String _filter = 'الكل';
+  String? _activeGroup;
+
+  static const Map<String, List<String>> _inventoryGroups = {
+    'حديد التسليح': [
+      'حديد تسليح T8', 'حديد تسليح T10', 'حديد تسليح T12',
+      'حديد تسليح T14', 'حديد تسليح T16', 'حديد تسليح T20',
+      'حديد تسليح T25', 'حديد تسليح T32', 'الحديد', 'الحديد تسليح',
+    ],
+    'الآجر': [
+      'الآجر', 'آجر 6 ثقوب', 'آجر 8 ثقوب', 'آجر 10 ثقوب',
+      'آجر 12 ثقوب', 'آجر 15 ثقوب', 'آجر 16 ثقوب', 'آجر 20 ثقوب',
+      'آجر أحمر مفرغ', 'آجر مصمت', 'بلوك إسمنتي',
+    ],
+    'الإسمنت': [
+      'الإسمنت', 'إسمنت CEM I 42.5', 'إسمنت CEM II 32.5',
+      'إسمنت CEM II 42.5', 'إسمنت مقاوم للأملاح CRS',
+      'إسمنت أبيض', 'إسمنت البناء',
+    ],
+    'الڨرافي': [
+      'ڨرافي 0/4', 'ڨرافي 4/8', 'ڨرافي 3/8', 'ڨرافي 8/15',
+      'ڨرافي 15/25', 'ڨرافي 25/40', 'ڨرافي 40/60',
+    ],
+  };
+  static const Map<String, IconData> _groupIcons = {
+    'حديد التسليح': Icons.construction,
+    'الآجر': Icons.grid_view_rounded,
+    'الإسمنت': Icons.inventory_2_outlined,
+    'الڨرافي': Icons.grain,
+  };
 
   @override
   void initState() { super.initState(); _load(); }
@@ -309,7 +338,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return _products.where((p) {
       final matches = p.name.toLowerCase().contains(q) || p.category.toLowerCase().contains(q);
       final low = _filter == 'نقص المخزون';
-      final categoryMatch = _filter == 'الكل' || low || p.category == _filter;
+      final groupCategories = _activeGroup == null ? null : _inventoryGroups[_activeGroup];
+      final categoryMatch = groupCategories != null
+          ? (groupCategories.contains(p.category) && (_filter == 'الكل' || low || p.category == _filter))
+          : (_filter == 'الكل' || low || p.category == _filter);
       return matches && categoryMatch && (!low || p.quantity <= p.minimum);
     }).toList();
   }
@@ -357,6 +389,63 @@ class _InventoryScreenState extends State<InventoryScreen> {
           _metric('قيمة المخزون',_money(total),Icons.account_balance_wallet_outlined),
         ]),
         const SizedBox(height:18),
+        const Text('أقسام المخزون',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
+        const SizedBox(height:10),
+        GridView.count(
+          shrinkWrap:true,
+          physics:const NeverScrollableScrollPhysics(),
+          crossAxisCount:2,
+          childAspectRatio:c.maxWidth<380?2.35:2.7,
+          crossAxisSpacing:9,
+          mainAxisSpacing:9,
+          children:_inventoryGroups.entries.map((entry) {
+            final count = _products.where((p)=>entry.value.contains(p.category)).length;
+            final selected = _activeGroup == entry.key;
+            return InkWell(
+              borderRadius:BorderRadius.circular(14),
+              onTap:()=>setState(() {
+                _activeGroup = selected ? null : entry.key;
+                _filter = 'الكل';
+              }),
+              child:Container(
+                padding:const EdgeInsets.all(12),
+                decoration:BoxDecoration(
+                  color:selected?BatiProTheme.gold.withValues(alpha:.18):BatiProTheme.surface,
+                  borderRadius:BorderRadius.circular(14),
+                  border:Border.all(color:selected?BatiProTheme.gold:BatiProTheme.border),
+                ),
+                child:Row(children:[
+                  Icon(_groupIcons[entry.key],color:BatiProTheme.gold,size:23),
+                  const SizedBox(width:8),
+                  Expanded(child:Column(
+                    mainAxisAlignment:MainAxisAlignment.center,
+                    crossAxisAlignment:CrossAxisAlignment.start,
+                    children:[
+                      Text(entry.key,style:const TextStyle(fontWeight:FontWeight.w800,fontSize:12,color:BatiProTheme.ink),maxLines:1,overflow:TextOverflow.ellipsis),
+                      Text('${count} منتج',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
+                    ],
+                  )),
+                  Icon(selected?Icons.expand_less:Icons.chevron_left,size:18,color:BatiProTheme.muted),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+        if(_activeGroup != null) ...[
+          const SizedBox(height:12),
+          Row(children:[
+            Expanded(child:Text('أنواع ${_activeGroup!}',style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
+            TextButton(onPressed:()=>setState(()=>_activeGroup=null),child:const Text('إظهار الكل')),
+          ]),
+          Wrap(spacing:7,runSpacing:7,children:[
+            ChoiceChip(label:const Text('كل الأنواع'),selected:_filter=='الكل',onSelected:(_)=>setState(()=>_filter='الكل')),
+            ..._inventoryGroups[_activeGroup!]!.map((v)=>ChoiceChip(
+              label:Text(v),selected:_filter==v,
+              onSelected:(_)=>setState(()=>_filter=v),
+            )),
+          ]),
+        ],
+        const SizedBox(height:16),
         TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(hintText:'ابحث عن منتج أو صنف...',prefixIcon:Icon(Icons.search))),
         const SizedBox(height:10),
         Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
