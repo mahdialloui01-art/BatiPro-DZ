@@ -29,7 +29,7 @@ void main() {
 
   testWidgets('Inventory shows the four requested groups and rebar sizes', (tester) async {
     await openApp(tester);
-    await tester.tap(find.text('المخزون'));
+    await tester.tap(find.text('المخزون').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('أقسام المخزون'), findsOneWidget);
