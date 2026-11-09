@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,7 @@ class ApiClient {
   static const FlutterSecureStorage _secure = FlutterSecureStorage();
   static const String _urlKey = 'batipro_api_base_url';
   static const String _tokenKey = 'batipro_api_access_token';
+  static const String _deviceKey = 'batipro_sync_device_id';
 
   String? _baseUrl;
   String? _token;
@@ -242,6 +244,15 @@ class ApiClient {
     final response = await http.get(_uri('/sync/status'), headers: _headers)
         .timeout(const Duration(seconds: 15));
     return _decode(response);
+  }
+
+  Future<String> getOrCreateDeviceId() async {
+    final saved = await _secure.read(key: _deviceKey);
+    if (saved != null && saved.length >= 8) return saved;
+    final random = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    final created = random.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    await _secure.write(key: _deviceKey, value: created);
+    return created;
   }
 
   Future<void> logout() async {
