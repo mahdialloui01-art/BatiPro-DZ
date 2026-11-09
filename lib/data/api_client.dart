@@ -200,6 +200,18 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<Map<String, dynamic>> importInitialSnapshot(
+      Map<String, dynamic> snapshot) async {
+    final response = await http
+        .post(
+          _uri('/sync/initial-snapshot'),
+          headers: _headers,
+          body: jsonEncode(snapshot),
+        )
+        .timeout(const Duration(minutes: 3));
+    return _decode(response);
+  }
+
   Future<void> logout() async {
     _token = null;
     await _secure.delete(key: _tokenKey);
