@@ -173,6 +173,13 @@ class InitialSyncService {
 
     final result = await api.importInitialSnapshot(payload);
     await storage.setString(resultKey, jsonEncode(result));
+    final idMap = result['id_map'];
+    if (idMap is Map) {
+      await storage.setString(
+        'batipro_sync_id_map_v1_' + base64Url.encode(utf8.encode(email)),
+        jsonEncode(idMap),
+      );
+    }
     return result;
   }
 
