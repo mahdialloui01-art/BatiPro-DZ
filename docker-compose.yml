@@ -14,6 +14,32 @@ services:
       timeout: 5s
       retries: 20
 
+  db-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-batipro}
+      PGUSER: ${POSTGRES_USER:-batipro}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - batipro_postgres_backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      while true; do
+        file="/backups/batipro-$(date -u +%Y%m%dT%H%M%SZ).dump";
+        if pg_dump -Fc -f "$file"; then
+          find /backups -type f -name 'batipro-*.dump' -mtime +7 -delete;
+        else
+          rm -f "$file";
+        fi;
+        sleep 86400;
+      done
+
   api:
     build:
       context: ./backend
@@ -30,3 +56,4 @@ services:
 
 volumes:
   batipro_postgres_data:
+  batipro_postgres_backups:
