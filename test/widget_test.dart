@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:batipro_dz/data/app_storage.dart';
 import 'package:batipro_dz/app/batipro_app.dart';
+import 'package:batipro_dz/screens/inventory_screen.dart';
 
 void main() {
   setUp(() async {
@@ -31,10 +32,21 @@ void main() {
   testWidgets('Inventory shows the four requested groups and rebar sizes', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
-    await openApp(tester);
-    await tester.tap(find.text('المنتجات والمخزون').first);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    // Test InventoryScreen in isolation. Navigation is owned by AppShell;
+    // tapping a sidebar label here made this content test depend on layout
+    // hit-testing rather than the inventory screen itself.
+    await tester.pumpWidget(const MaterialApp(
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: InventoryScreen(),
+      ),
+    ));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('أقسام المخزون'), findsOneWidget);
     expect(find.text('حديد التسليح'), findsOneWidget);
     expect(find.text('الآجر'), findsWidgets);
