@@ -193,8 +193,8 @@ class _SectionScreenState extends State<SectionScreen> {
       await _persist();
       if (_kind == 'purchases') await _ensureSupplier(result['supplier']?.toString() ?? '');
       _toast(old == null ? 'تمت إضافة السجل بنجاح.' : 'تم تحديث السجل.');
-    } catch (_) {
-      _toast('تعذر حفظ البيانات. حاول مرة أخرى.');
+    } catch (error) {
+      _toast(error is StateError ? error.message.toString() : 'تعذر حفظ البيانات. حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -233,13 +233,32 @@ class _SectionScreenState extends State<SectionScreen> {
     String normalize(String value) =>
         value.trim().toLowerCase().replaceAll(RegExp(r'\\s+'), ' ');
 
+    String categoryFor(Map<String, dynamic>? data) {
+      if (data == null) return '';
+      final steelType = (data['steelType'] ?? 'مواد عادية').toString();
+      if (steelType != 'مواد عادية') {
+        if (data['inventoryCategory'] != null) return data['inventoryCategory'].toString();
+        if (steelType == 'حديد تسليح') {
+          final diameter = (data['diameterMm'] as num?)?.toDouble() ?? 12;
+          return 'حديد تسليح T${diameter.round()}';
+        }
+        return steelType;
+      }
+      return (data['inventoryCategory'] ?? data['category'] ?? 'مواد البناء').toString();
+    }
+
     void adjust(String productName, double quantityDelta, double unitPrice,
         {bool addCost = true, Map<String, dynamic>? source}) {
       final cleanName = productName.trim();
       if (cleanName.isEmpty || quantityDelta == 0) return;
       final normalizedName = normalize(cleanName);
+      final sourceCategory = categoryFor(source);
       var index = stock.indexWhere((p) =>
-          normalize((p['name'] ?? '').toString()) == normalizedName);
+          normalize((p['name'] ?? '').toString()) == normalizedName &&
+          (source == null || (p['category'] ?? 'مواد البناء').toString() == sourceCategory));
+      if (index < 0 && source != null && source['inventoryCategory'] == null) {
+        index = stock.indexWhere((p) => normalize((p['name'] ?? '').toString()) == normalizedName);
+      }
 
       if (index < 0 && quantityDelta > 0) {
         final isSteel = source != null &&
@@ -266,6 +285,11 @@ class _SectionScreenState extends State<SectionScreen> {
       final product = stock[index];
       final currentQuantity = (product['quantity'] as num?)?.toDouble() ?? 0;
       final currentPrice = (product['purchasePrice'] as num?)?.toDouble() ?? 0;
+      final incomingUnit = (source?['stockUnit'] ?? '').toString();
+      final currentUnit = (product['unit'] ?? '').toString();
+      if (quantityDelta > 0 && incomingUnit.isNotEmpty && currentUnit.isNotEmpty && incomingUnit != currentUnit) {
+        throw StateError('وحدة المادة في المخزون ($currentUnit) تختلف عن وحدة الشراء ($incomingUnit). استعمل نفس الوحدة أو سجّل المادة كمنتج مستقل.');
+      }
       if (quantityDelta > 0) {
         final nextQuantity = currentQuantity + quantityDelta;
         if (addCost && nextQuantity > 0) {
@@ -299,7 +323,8 @@ class _SectionScreenState extends State<SectionScreen> {
       adjust((old['product'] ?? '').toString(),
           -((old['quantity'] as num?)?.toDouble() ?? 0),
           (old['stockUnitPrice'] as num?)?.toDouble() ??
-              (old['unitPrice'] as num?)?.toDouble() ?? 0);
+              (old['unitPrice'] as num?)?.toDouble() ?? 0,
+          source: old);
     }
     adjust((purchase['product'] ?? '').toString(),
         (purchase['quantity'] as num?)?.toDouble() ?? 0,

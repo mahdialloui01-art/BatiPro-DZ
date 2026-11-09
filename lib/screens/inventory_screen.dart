@@ -386,7 +386,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text('BatiPro DZ',style:TextStyle(color:BatiProTheme.muted,fontSize:11)),
           SizedBox(height:4),Text('المنتجات والمخزون',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-        ])),FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : _inventoryGroups[_activeGroup]!.first),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
+        ])),FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:c.maxWidth<600?2:3,childAspectRatio:c.maxWidth<600?1.8:2.2,crossAxisSpacing:10,mainAxisSpacing:10,children:[
           _metric('عدد المنتجات','${_products.length}',Icons.inventory_2_outlined),
@@ -440,7 +440,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           const SizedBox(height:12),
           Row(children:[
             Expanded(child:Text('أنواع ${_activeGroup!}',style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
-            TextButton(onPressed:()=>setState(()=>_activeGroup=null),child:const Text('إظهار الكل')),
+            TextButton(onPressed:()=>setState(()=>{_activeGroup=null;_filter='الكل';}),child:const Text('إظهار الكل')),
           ]),
           Wrap(spacing:7,runSpacing:7,children:[
             ChoiceChip(label:const Text('كل الأنواع'),selected:_filter=='الكل',onSelected:(_)=>setState(()=>_filter='الكل')),
