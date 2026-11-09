@@ -604,6 +604,9 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
     pool = _pool()
     async with pool.connection() as connection:
         async with connection.transaction():
+            await connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (org_id+":initial-snapshot-v1",))
             prior_device = await (await connection.execute(
                 """SELECT device_id FROM sync_requests
                    WHERE organization_id=%s AND idempotency_key='initial-snapshot-v1'
