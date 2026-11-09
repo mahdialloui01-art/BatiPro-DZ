@@ -762,6 +762,73 @@ class _EntryEditorState extends State<_EntryEditor> {
       for (final field in widget.fields)
         field.key: TextEditingController(text: _initialFieldValue(field.key)),
     };
+    for (final key in ['quantity', 'unitPrice', 'paid']) {
+      _controllers[key]?.addListener(_refreshPurchasePreview);
+    }
+  }
+
+  void _refreshPurchasePreview() {
+    if (mounted) setState(() {});
+  }
+
+  double _numberValue(String key) =>
+      double.tryParse((_controllers[key]?.text ?? '0').trim().replaceAll(',', '.')) ?? 0;
+
+  String _previewMoney(double value) {
+    final digits = value == value.roundToDouble() ? 0 : 2;
+    return '${value.toStringAsFixed(digits)} دج';
+  }
+
+  Widget _purchasePreview() {
+    final total = _numberValue('quantity') * _numberValue('unitPrice');
+    final paid = _numberValue('paid');
+    final remaining = (total - paid).clamp(0, double.infinity).toDouble();
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('ملخص الفاتورة قبل الحفظ',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('إجمالي الفاتورة قبل الدفع'),
+                Text(_previewMoney(total),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('المبلغ المدفوع'),
+                Text(_previewMoney(paid)),
+              ],
+            ),
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('الباقي للمورد',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                Text(_previewMoney(remaining),
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+              ],
+            ),
+            if (paid > total)
+              const Padding(
+                padding: EdgeInsets.only(top: 7),
+                child: Text('تنبيه: المبلغ المدفوع أكبر من إجمالي الفاتورة.',
+                    style: TextStyle(color: Colors.red, fontSize: 12)),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -847,18 +914,34 @@ class _EntryEditorState extends State<_EntryEditor> {
                         value: field.options.contains(_controllers[field.key]!.text)
                             ? _controllers[field.key]!.text : field.options.first,
                         isExpanded: true,
-                        decoration: InputDecoration(labelText: field.label),
+                        decoration: InputDecoration(
+                          labelText: field.key == 'unitPrice' && widget.title.contains('المشتريات')
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
+                              : field.label,
+                        ),
                         items: field.options.map((option) => DropdownMenuItem<String>(
                           value: option, child: Text(option, overflow: TextOverflow.ellipsis),
                         )).toList(),
                         onChanged: (value) {
-                          if (value != null) _controllers[field.key]!.text = value;
+                          if (value != null) {
+                            _controllers[field.key]!.text = value;
+                            if (mounted) setState(() {});
+                          }
                         },
                       )
                     : TextFormField(
                         controller: _controllers[field.key],
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-                        decoration: InputDecoration(labelText: field.label, helperText: field.key == 'diameterMm' ? 'أدخل الرقم فقط: 8 لـ T8، 10 لـ T10، 14 لـ T14، 16 لـ T16، أو أي قطر آخر' : field.key == 'inputUnit' ? 'اكتب kg للكيلوغرام أو ton للطن' : null),
+                        decoration: InputDecoration(
+                          labelText: field.key == 'unitPrice' && widget.title.contains('المشتريات')
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
+                              : field.label,
+                          helperText: field.key == 'diameterMm'
+                              ? 'أدخل الرقم فقط: 8 لـ T8، 10 لـ T10، 14 لـ T14، 16 لـ T16، أو أي قطر آخر'
+                              : field.key == 'inputUnit'
+                                  ? 'اكتب kg للكيلوغرام أو ton للطن'
+                                  : null,
+                        ),
                         validator: (value) {
                           if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
                           if (field.optional && (value == null || value.trim().isEmpty)) return null;
@@ -870,6 +953,10 @@ class _EntryEditorState extends State<_EntryEditor> {
                         },
                       ),
               ),
+            if (widget.title.contains('المشتريات')) ...[
+              const SizedBox(height: 4),
+              _purchasePreview(),
+            ],
           ]),
         ),
       ),
