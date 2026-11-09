@@ -98,9 +98,11 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
     if (printer == null || _busy) return;
     setState(() => _busy = true);
     try {
-      final escaped = printer.replaceAll("'", "''");
+      final encodedPrinter = base64Encode(utf8.encode(printer));
       await _runPowerShell(
-        r'$printer = "' + escaped.replaceAll('"', '`"') + r'"; '
+        r'$printer = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("' +
+        encodedPrinter +
+        r'")); '
         r'if (-not (Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $printer })) { throw "Printer not found" }; '
         r'@("BatiPro DZ", "TEST PRINT", "Windows POS printer is ready.", (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), "------------------------------") | Out-Printer -Name $printer',
       );
