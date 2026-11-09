@@ -444,6 +444,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ]),
           Wrap(spacing:7,runSpacing:7,children:[
             ChoiceChip(label:const Text('كل الأنواع'),selected:_filter=='الكل',onSelected:(_)=>setState(()=>_filter='الكل')),
+            ChoiceChip(label:const Text('نقص المخزون'),selected:_filter=='نقص المخزون',onSelected:(_)=>setState(()=>_filter='نقص المخزون')),
             ..._inventoryGroups[_activeGroup!]!.map((v)=>ChoiceChip(
               label:Text(v),selected:_filter==v,
               onSelected:(_)=>setState(()=>_filter=v),
@@ -453,7 +454,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
         const SizedBox(height:16),
         TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(hintText:'ابحث عن منتج أو صنف...',prefixIcon:Icon(Icons.search))),
         const SizedBox(height:10),
-        Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
+        if (_activeGroup == null)
+          Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
         const SizedBox(height:12),
         if(_visible.isEmpty) const Card(child:Padding(padding:EdgeInsets.all(30),child:Center(child:Text('لا توجد منتجات مطابقة'))))
         else ..._visible.map((p)=>Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
