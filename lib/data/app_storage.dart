@@ -112,6 +112,67 @@ class AppStorage {
       )));
   }
 
+  /// Exports every persisted key/value row without copying a live SQLite/WAL file.
+  static Future<String> exportBackupJson() async {
+    final db = _database;
+    if (db == null) throw StateError('SQLite database is not initialized.');
+    final rows = await db.query('app_data', orderBy: 'data_key ASC');
+    return jsonEncode({
+      'format': 'BatiProDZ-backup',
+      'version': 1,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'data': rows.map((row) => {
+        'key': row['data_key'],
+        'value': row['data_value'],
+        'updated_at': row['updated_at'],
+      }).toList(),
+    });
+  }
+
+  /// Validates a complete backup before replacing local data in one transaction.
+  static Future<int> restoreBackupJson(String source) async {
+    final db = _database;
+    if (db == null) throw StateError('SQLite database is not initialized.');
+    final decoded = jsonDecode(source);
+    if (decoded is! Map || decoded['format'] != 'BatiProDZ-backup' ||
+        decoded['version'] != 1 || decoded['data'] is! List) {
+      throw const FormatException('ملف النسخة الاحتياطية غير صالح أو غير مدعوم.');
+    }
+    final entries = <Map<String, String>>[];
+    final seen = <String>{};
+    for (final raw in decoded['data'] as List) {
+      if (raw is! Map || raw['key'] is! String || raw['value'] is! String) {
+        throw const FormatException('بيانات النسخة الاحتياطية غير مكتملة.');
+      }
+      final key = (raw['key'] as String).trim();
+      if (key.isEmpty || !seen.add(key)) {
+        throw const FormatException('توجد مفاتيح فارغة أو مكررة في النسخة الاحتياطية.');
+      }
+      entries.add({
+        'key': key,
+        'value': raw['value'] as String,
+        'updated_at': raw['updated_at'] is String
+            ? raw['updated_at'] as String
+            : DateTime.now().toIso8601String(),
+      });
+    }
+    if (entries.isEmpty) {
+      throw const FormatException('النسخة الاحتياطية فارغة.');
+    }
+    await db.transaction((txn) async {
+      await txn.delete('app_data');
+      final batch = txn.batch();
+      for (final entry in entries) {
+        batch.insert('app_data', entry);
+      }
+      await batch.commit(noResult: true);
+    });
+    _cache
+      ..clear()
+      ..addEntries(entries.map((entry) => MapEntry(entry['key']!, entry['value']!)));
+    return entries.length;
+  }
+
   /// Closes the in-memory database between widget tests.
   static Future<void> resetForTests() async {
     final db = _database;
