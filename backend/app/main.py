@@ -904,7 +904,7 @@ async def push_sync_changes(body: SyncPushRequest, user=Depends(_writer)):
                     """INSERT INTO sync_events
                        (organization_id,document_key,document_value,revision,is_deleted,device_id,mutation_id)
                        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING event_id""",
-                    (org_id,key,value,next_revision,mutation.deleted,body.device_id,mutation.mutation_id)).fetchone()
+                    (org_id,key,value,next_revision,mutation.deleted,body.device_id,mutation.mutation_id))).fetchone()
                 accepted.append({"mutation_id": mutation.mutation_id,
                                  "event_id": event[0], "revision": next_revision,
                                  "duplicate": False})
