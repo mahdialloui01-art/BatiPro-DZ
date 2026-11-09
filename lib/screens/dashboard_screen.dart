@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../data/app_storage.dart';
 import '../app/app_theme.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
@@ -53,7 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final sales = _readList(prefs.getString('batipro_sales_v1'));
     final purchases = _readList(prefs.getString('batipro_purchases_v1'));
     final stock = _readList(prefs.getString('batipro_inventory_v1'));
