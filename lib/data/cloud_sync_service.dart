@@ -35,47 +35,40 @@ class CloudSyncService {
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
     var cursor = (metadata['cursor'] as num?)?.toInt() ?? 0;
 
-    // A brand-new installation must download the server baseline before pushing
-    // local defaults, otherwise it could collide with existing organization data.
+    var pulled = 0;
+
+    // A new installation starts from a consistent server snapshot, not old
+    // event history, so pre-existing local values are never blindly replaced.
     if (documents.isEmpty && cursor == 0) {
-      var bootstrapPages = 0;
-      while (true) {
-        final page = await api.pullSyncChanges(deviceId: deviceId, after: cursor, limit: 200);
-        final changes = (page['changes'] as List? ?? const []);
-        if (changes.isEmpty) break;
-        var processedCursor = cursor;
-        for (final raw in changes) {
-          final change = Map<String, dynamic>.from(raw as Map);
-          final key = change['key'] as String;
-          final deleted = change['deleted'] == true;
-          final value = change['value'] as String?;
-          final localValue = storage.getString(key);
-          final localIsCompatible = localValue == null ||
-              (!deleted && localValue == value);
-          if (!localIsCompatible) {
-            await storage.setString(_metadataKey,
-                jsonEncode({'cursor': processedCursor, 'documents': documents}));
-            throw StateError('هذا الجهاز يحتوي بيانات محلية مختلفة عن الخادم في "$key". لم ندمجها تلقائياً حتى لا تضيع أي نسخة.');
-          }
-          if (deleted) {
-            await storage.remove(key);
-          } else if (value != null) {
-            await storage.setString(key, value);
-          }
-          documents[key] = {
-            'revision': (change['revision'] as num).toInt(),
-            'value': value,
-            'deleted': deleted,
-          };
-          processedCursor = (change['event_id'] as num).toInt();
-          pulled++;
+      final snapshot = await api.syncSnapshot();
+      final remoteDocuments = (snapshot['documents'] as List? ?? const []);
+      for (final raw in remoteDocuments) {
+        final remote = Map<String, dynamic>.from(raw as Map);
+        final key = remote['key'] as String;
+        final deleted = remote['deleted'] == true;
+        final value = remote['value'] as String?;
+        final localValue = storage.getString(key);
+        final compatible = localValue == null || (!deleted && localValue == value);
+        if (!compatible) {
+          await storage.setString(_metadataKey,
+              jsonEncode({'cursor': cursor, 'documents': documents}));
+          throw StateError('هذا الجهاز يحتوي بيانات محلية مختلفة عن الخادم في "$key". لم ندمجها تلقائياً حتى لا تضيع أي نسخة.');
         }
-        cursor = processedCursor;
-        await storage.setString(_metadataKey,
-            jsonEncode({'cursor': cursor, 'documents': documents}));
-        bootstrapPages++;
-        if (page['has_more'] != true || bootstrapPages > 1000) break;
+        if (deleted) {
+          await storage.remove(key);
+        } else if (value != null) {
+          await storage.setString(key, value);
+        }
+        documents[key] = {
+          'revision': (remote['revision'] as num).toInt(),
+          'value': value,
+          'deleted': deleted,
+        };
+        pulled++;
       }
+      cursor = (snapshot['cursor'] as num?)?.toInt() ?? 0;
+      await storage.setString(_metadataKey,
+          jsonEncode({'cursor': cursor, 'documents': documents}));
     }
 
     bool eligible(String key) => key.startsWith('batipro_') &&
@@ -134,7 +127,6 @@ class CloudSyncService {
       }
     }
 
-    var pulled = 0;
     var pages = 0;
     while (true) {
       final page = await api.pullSyncChanges(deviceId: deviceId, after: cursor, limit: 200);
