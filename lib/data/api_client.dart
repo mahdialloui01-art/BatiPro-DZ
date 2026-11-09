@@ -212,6 +212,38 @@ class ApiClient {
     return _decode(response);
   }
 
+
+  Future<Map<String, dynamic>> pushSyncChanges({
+    required String deviceId,
+    required List<Map<String, dynamic>> mutations,
+  }) async {
+    final response = await http.post(
+      _uri('/sync/push'),
+      headers: _headers,
+      body: jsonEncode({'device_id': deviceId, 'mutations': mutations}),
+    ).timeout(const Duration(seconds: 45));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> pullSyncChanges({
+    required String deviceId,
+    required int after,
+    int limit = 200,
+  }) async {
+    final uri = _uri('/sync/pull').replace(queryParameters: {
+      'device_id': deviceId, 'after': after.toString(), 'limit': limit.toString(),
+    });
+    final response = await http.get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 45));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> syncStatus() async {
+    final response = await http.get(_uri('/sync/status'), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
   Future<void> logout() async {
     _token = null;
     await _secure.delete(key: _tokenKey);
