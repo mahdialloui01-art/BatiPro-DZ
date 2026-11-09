@@ -27,7 +27,7 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - name: Build universal release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-name=0.1.${{ github.run_number }} --build-number=${{ github.run_number }}
       - name: Verify APK integrity, signature and device compatibility
         shell: bash
         run: |
@@ -61,7 +61,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.2-install-verified
-          name: BatiPro DZ – فحص تثبيت Android
+          tag_name: v0.1.${{ github.run_number }}-install-verified
+          name: BatiPro DZ – فحص تثبيت Android (${{ github.run_number }})
           generate_release_notes: true
           files: build/app/outputs/flutter-apk/app-release.apk
