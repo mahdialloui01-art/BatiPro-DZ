@@ -303,8 +303,10 @@ async def list_products(user=Depends(_current_user)):
 
 @app.post("/products", status_code=status.HTTP_201_CREATED, tags=["products"])
 async def create_product(body: ProductCreate, user=Depends(_writer)):
-    if body.tracking_mode == "piece" and body.piece_weight_kg is None:
-        raise HTTPException(status_code=422, detail="piece_weight_kg is required for piece-tracked products")
+    if body.tracking_mode == "piece" and body.piece_weight_kg is None and (
+        body.rebar_diameter_mm is None or body.bar_length_m is None
+    ):
+        raise HTTPException(status_code=422, detail="Set piece weight or both rebar diameter and bar length")
     async with _pool().connection() as connection:
         async with connection.transaction():
             category = await connection.execute(
