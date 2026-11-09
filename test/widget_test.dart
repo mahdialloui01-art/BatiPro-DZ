@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:batipro_dz/data/app_storage.dart';
 import 'package:batipro_dz/app/batipro_app.dart';
 
 void main() {
   testWidgets('BatiPro dashboard renders', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    await AppStorage.initialize(inMemory: true);
     await tester.pumpWidget(const BatiProApp());
     await tester.pumpAndSettle();
 
