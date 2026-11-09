@@ -5,9 +5,12 @@ CREATE TABLE IF NOT EXISTS sync_documents (
     revision BIGINT NOT NULL DEFAULT 0 CHECK (revision >= 0),
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     updated_by_device TEXT NOT NULL,
+    last_event_id BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (organization_id, document_key)
 );
+
+ALTER TABLE sync_documents ADD COLUMN IF NOT EXISTS last_event_id BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS sync_events (
     event_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
