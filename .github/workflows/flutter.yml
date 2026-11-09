@@ -49,8 +49,30 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_2
+          disable-animations: true
           script: |
-            adb install build/app/outputs/flutter-apk/app-release.apk && PACKAGE="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)/aapt" && PACKAGE="$("$PACKAGE" dump badging build/app/outputs/flutter-apk/app-release.apk | awk -F"'" '/^package: name=/{print $2; exit}')" && test -n "$PACKAGE" && echo "Installed package: $PACKAGE" && adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 && sleep 5 && adb shell pidof "$PACKAGE"
+            set -euo pipefail
+            APK="build/app/outputs/flutter-apk/app-release.apk"
+            TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+            PACKAGE="$("$TOOLS_DIR/aapt" dump badging "$APK" | awk -F"'" '/^package: name=/{print $2; exit}')"
+            test -n "$PACKAGE"
+            echo "Installing $PACKAGE"
+            adb wait-for-device
+            adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
+            adb install "$APK"
+            echo "Starting app through Android Activity Manager (no Monkey process)"
+            adb shell am force-stop "$PACKAGE" || true
+            adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$PACKAGE"
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              if adb shell pidof "$PACKAGE"; then
+                echo "App process is running"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "App did not remain running; recent app logs:"
+            adb logcat -d -t 500 | grep -E "$PACKAGE|FATAL EXCEPTION|AndroidRuntime" | tail -n 120 || true
+            exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
