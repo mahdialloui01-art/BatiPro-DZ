@@ -59,7 +59,6 @@ class _SalesScreenState extends State<SalesScreen> {
     if(mounted)setState(()=>loading=false);
   }
   Future<void> _persist() async {
-    final prefs=await AppStorage.getInstance();
     await AppStorage.setStrings({
       stockKey: jsonEncode(products.map((e)=>e.toJson()).toList()),
       salesKey: jsonEncode(invoices.map((e)=>e.toJson()).toList()),
