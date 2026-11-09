@@ -905,12 +905,35 @@ async def push_sync_changes(body: SyncPushRequest, user=Depends(_writer)):
                        (organization_id,document_key,document_value,revision,is_deleted,device_id,mutation_id)
                        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING event_id""",
                     (org_id,key,value,next_revision,mutation.deleted,body.device_id,mutation.mutation_id))).fetchone()
+                await connection.execute(
+                    """UPDATE sync_documents SET last_event_id=%s
+                       WHERE organization_id=%s AND document_key=%s""",
+                    (event[0],org_id,key))
                 accepted.append({"mutation_id": mutation.mutation_id,
                                  "event_id": event[0], "revision": next_revision,
                                  "duplicate": False})
     return {"accepted": accepted, "conflicts": conflicts,
             "has_conflicts": bool(conflicts)}
 
+
+@app.get("/sync/snapshot", tags=["synchronization"])
+async def sync_snapshot(user=Depends(_current_user)):
+    """Return the latest server state for a new device, without replaying old events."""
+    async with _pool().connection() as connection:
+        rows = await (await connection.execute(
+            """SELECT document_key,document_value,revision,is_deleted,last_event_id
+               FROM sync_documents WHERE organization_id=%s ORDER BY document_key""",
+            (user["organization_id"],))).fetchall()
+        latest = await (await connection.execute(
+            "SELECT COALESCE(MAX(event_id),0) FROM sync_events WHERE organization_id=%s",
+            (user["organization_id"],))).fetchone()
+    return {
+        "documents": [{
+            "key": row[0], "value": row[1], "revision": row[2],
+            "deleted": row[3], "event_id": row[4],
+        } for row in rows],
+        "cursor": latest[0],
+    }
 
 @app.get("/sync/pull", tags=["synchronization"])
 async def pull_sync_changes(after: int = 0, limit: int = 200,
