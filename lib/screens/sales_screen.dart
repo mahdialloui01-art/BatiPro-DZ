@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../data/app_storage.dart';
+import '../data/pos_drawer_service.dart';
 import '../app/app_theme.dart';
 
 class _SaleProduct {
@@ -82,7 +83,17 @@ class _SalesScreenState extends State<SalesScreen> {
     setState(()=>invoices.insert(0,invoice));
     await _registerCustomer(invoice.client);
     await _persist();
-    _toast('تم حفظ الفاتورة وخصم الكميات من المخزون.');
+    var drawerMessage = '';
+    if (invoice.paid > 0) {
+      try {
+        if (await PosDrawerService.openAfterSale()) {
+          drawerMessage = ' تم إرسال أمر فتح درج النقود.';
+        }
+      } catch (error) {
+        drawerMessage = ' تعذر فتح الدرج: $error';
+      }
+    }
+    _toast('تم حفظ الفاتورة وخصم الكميات من المخزون.$drawerMessage');
   }
 
   Future<void> _registerCustomer(String name) async {
@@ -132,7 +143,15 @@ class _SalesScreenState extends State<SalesScreen> {
     final updated = _SaleInvoice(current.id,current.client,current.method,current.date,current.total,(current.paid+amount).clamp(0,current.total).toDouble(),current.items);
     setState(()=>invoices[index]=updated);
     await _persist();
-    _toast('تم تسجيل التحصيل وتحديث دين الزبون.');
+    var drawerMessage = '';
+    try {
+      if (await PosDrawerService.openAfterSale()) {
+        drawerMessage = ' تم إرسال أمر فتح درج النقود.';
+      }
+    } catch (error) {
+      drawerMessage = ' تعذر فتح الدرج: $error';
+    }
+    _toast('تم تسجيل التحصيل وتحديث دين الزبون.$drawerMessage');
   }
 
   Future<void> _showInvoice(_SaleInvoice i) async {
