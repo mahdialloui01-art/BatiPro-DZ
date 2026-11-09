@@ -112,6 +112,14 @@ class AppStorage {
       )));
   }
 
+  /// Closes the in-memory database between widget tests.
+  static Future<void> resetForTests() async {
+    final db = _database;
+    _database = null;
+    _cache.clear();
+    if (db != null) await db.close();
+  }
+
   static Future<AppStorage> getInstance() async {
     if (_database == null) {
       throw StateError('AppStorage.initialize() must complete before use.');
