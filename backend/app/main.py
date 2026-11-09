@@ -675,9 +675,16 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                 key = local_id or name.strip().casefold()
                 if key in mapping:
                     return mapping[key]
+                clean_name = name.strip() or ("مورد غير محدد" if kind=="supplier" else "زبون غير محدد")
+                existing = await (await connection.execute(
+                    f"SELECT id FROM {table} WHERE organization_id=%s AND lower(name)=lower(%s) ORDER BY created_at LIMIT 1",
+                    (org_id,clean_name))).fetchone()
+                if existing is not None:
+                    mapping[key] = existing[0]
+                    return existing[0]
                 row = await (await connection.execute(
                     f"INSERT INTO {table} (organization_id,name,phone,address) VALUES (%s,%s,%s,%s) RETURNING id",
-                    (org_id,name.strip() or ("مورد غير محدد" if kind=="supplier" else "زبون غير محدد"),phone,address))).fetchone()
+                    (org_id,clean_name,phone,address))).fetchone()
                 mapping[key] = row[0]
                 counts[kind+"s"] += 1
                 return row[0]
