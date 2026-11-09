@@ -38,7 +38,24 @@ class _ProductEditorDialog extends StatefulWidget {
 
 class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   static const _categories = <String>[
-    'مواد البناء', 'الإسمنت', 'الآجر', 'الرمل والحصى', 'الحديد', 'الحديد تسليح',
+    'مواد البناء',
+    // حديد التسليح حسب المقاس
+    'حديد تسليح T8', 'حديد تسليح T10', 'حديد تسليح T12', 'حديد تسليح T14',
+    'حديد تسليح T16', 'حديد تسليح T20', 'حديد تسليح T25', 'حديد تسليح T32',
+    'الحديد', 'الحديد تسليح',
+    // الآجر والبلوك
+    'الآجر', 'آجر 6 ثقوب', 'آجر 8 ثقوب', 'آجر 10 ثقوب', 'آجر 12 ثقوب',
+    'آجر 15 ثقوب', 'آجر 16 ثقوب', 'آجر 20 ثقوب', 'آجر أحمر مفرغ',
+    'آجر مصمت', 'بلوك إسمنتي',
+    // الإسمنت
+    'الإسمنت', 'إسمنت CEM I 42.5', 'إسمنت CEM II 32.5',
+    'إسمنت CEM II 42.5', 'إسمنت مقاوم للأملاح CRS', 'إسمنت أبيض',
+    'إسمنت البناء',
+    // الحصى (ڨرافي)
+    'ڨرافي 0/4', 'ڨرافي 4/8', 'ڨرافي 3/8', 'ڨرافي 8/15',
+    'ڨرافي 15/25', 'ڨرافي 25/40', 'ڨرافي 40/60',
+    'الرمل والحصى', 'رمل',
+    // بقية أصناف الحديد
     'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت',
     'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA',
     'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد',
@@ -57,8 +74,8 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   late String _category;
   late String _weightUnit;
 
-  bool get _isSteel => _categories.skip(4).contains(_category);
-  bool get _usesDiameter => _category == 'الحديد تسليح' || _category == 'حديد دائري مصمت';
+  bool get _isSteel => _category.contains('حديد') || _category.contains('سلك') || _category.contains('شبك') || _category.contains('أنبوب') || _category.contains('عوارض') || _category.contains('زوايا') || _category.contains('مقاطع') || _category.contains('صفائح') || _category.contains('فلات') || _category.contains('قضبان ملولبة') || _category.contains('مسامير');
+  bool get _usesDiameter => _category.startsWith('حديد تسليح') || _category == 'الحديد تسليح' || _category == 'حديد دائري مصمت';
 
   @override
   void initState() {
