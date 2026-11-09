@@ -8,6 +8,7 @@ import '../data/api_client.dart';
 import '../data/initial_sync_service.dart';
 import '../data/cloud_sync_service.dart';
 import '../app/app_theme.dart';
+import '../widgets/pos_peripherals_panel.dart';
 
 class _FieldSpec {
   final String key, label;
@@ -1248,6 +1249,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return Card(child: Padding(
       padding: const EdgeInsets.all(17),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const PosPeripheralsPanel(),
+        const SizedBox(height: 18),
         const Text('معلومات المحل', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
         const SizedBox(height: 14),
         _field(_name, 'اسم المحل', icon: Icons.storefront_outlined),
