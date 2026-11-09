@@ -46,7 +46,11 @@ void main() {
       ),
     ));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
+    // SQLite FFI completes outside the widget test's fake clock.
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
     expect(find.text('أقسام المخزون'), findsOneWidget);
     expect(find.text('حديد التسليح'), findsOneWidget);
     expect(find.text('الآجر'), findsWidgets);
