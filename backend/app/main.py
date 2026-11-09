@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import secrets
+from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -192,6 +193,17 @@ class SaleCreate(BaseModel):
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     paid: Decimal = Field(default=Decimal("0"), ge=0)
     notes: str | None = Field(default=None, max_length=2000)
+
+
+
+class InitialSnapshot(BaseModel):
+    device_id: str = Field(min_length=8, max_length=120)
+    idempotency_key: str = Field(min_length=8, max_length=120)
+    products: list[dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    suppliers: list[dict[str, Any]] = Field(default_factory=list, max_length=1000)
+    customers: list[dict[str, Any]] = Field(default_factory=list, max_length=1000)
+    purchases: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+    sales: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
 
 
 @app.get("/health/live", tags=["health"])
@@ -581,4 +593,199 @@ async def create_sale(body: SaleCreate, user=Depends(_writer)):
     return {"id":str(invoice_id),"invoice_number":body.invoice_number,
             "subtotal":str(subtotal),"total":str(total),"paid":str(body.paid),
             "due":str(total-body.paid)}
+
+@app.post("/sync/initial-snapshot", tags=["synchronization"])
+async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
+    """One-time legacy import. Current stock is imported as opening stock;
+    historical invoices are archived without replaying their stock movements."""
+    payload = body.model_dump(mode="json")
+    payload_hash = hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),ensure_ascii=False,default=str).encode()).hexdigest()
+    org_id = user["organization_id"]
+    pool = _pool()
+    async with pool.connection() as connection:
+        async with connection.transaction():
+            inserted = await (await connection.execute(
+                """INSERT INTO sync_requests (organization_id,device_id,idempotency_key,payload_hash)
+                   VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,device_id,idempotency_key)
+                   DO NOTHING RETURNING id""",
+                (org_id,body.device_id,body.idempotency_key,payload_hash))).fetchone()
+            if inserted is None:
+                prior = await (await connection.execute(
+                    """SELECT payload_hash,result_json FROM sync_requests
+                       WHERE organization_id=%s AND device_id=%s AND idempotency_key=%s FOR UPDATE""",
+                    (org_id,body.device_id,body.idempotency_key))).fetchone()
+                if prior is None or prior[0] != payload_hash:
+                    raise HTTPException(status_code=409,detail="Snapshot key was already used with different data")
+                if prior[1] is not None:
+                    return {**prior[1],"already_imported":True}
+                raise HTTPException(status_code=409,detail="Snapshot is being processed; retry shortly")
+
+            warehouse_row = await (await connection.execute(
+                "SELECT id FROM warehouses WHERE organization_id=%s AND is_active ORDER BY created_at LIMIT 1",
+                (org_id,))).fetchone()
+            if warehouse_row is None:
+                raise HTTPException(status_code=409,detail="No active warehouse is configured")
+            warehouse_id = warehouse_row[0]
+
+            product_ids: dict[str, UUID] = {}
+            product_by_name: dict[tuple[str,str], UUID] = {}
+            supplier_ids: dict[str, UUID] = {}
+            customer_ids: dict[str, UUID] = {}
+            counts = {"products":0,"suppliers":0,"customers":0,"purchases":0,"sales":0,"opening_stock_items":0}
+            for item in body.products:
+                local_id = str(item.get("local_id","")).strip()
+                name = str(item.get("name","")).strip()
+                category_name = str(item.get("category","مواد البناء")).strip() or "مواد البناء"
+                unit = str(item.get("unit","وحدة")).strip() or "وحدة"
+                if not local_id or not name:
+                    raise HTTPException(status_code=422,detail="Every snapshot product needs local_id and name")
+                category = await (await connection.execute(
+                    """INSERT INTO product_categories (organization_id,name) VALUES (%s,%s)
+                       ON CONFLICT (organization_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING id""",
+                    (org_id,category_name))).fetchone()
+                piece_weight = item.get("piece_weight_kg")
+                diameter = item.get("rebar_diameter_mm")
+                length = item.get("bar_length_m")
+                tracking = "piece" if piece_weight or (diameter and length) else "quantity"
+                product = await (await connection.execute(
+                    """INSERT INTO products (organization_id,category_id,name,base_unit,tracking_mode,
+                       piece_weight_kg,rebar_diameter_mm,bar_length_m,purchase_price,sale_price,minimum_stock)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (org_id,category[0],name,unit,tracking,piece_weight,diameter,length,
+                     item.get("purchase_price",0),item.get("sale_price",0),item.get("minimum_stock",0)))).fetchone()
+                product_ids[local_id] = product[0]
+                product_by_name[(name.strip().casefold(),category_name.casefold())] = product[0]
+                counts["products"] += 1
+                quantity = Decimal(str(item.get("quantity",0)))
+                if quantity < 0:
+                    raise HTTPException(status_code=422,detail="Opening stock cannot be negative")
+                if quantity > 0:
+                    await connection.execute(
+                        """INSERT INTO stock_movements
+                           (organization_id,warehouse_id,product_id,movement_type,quantity_delta,
+                            unit,source_type,idempotency_key)
+                           VALUES (%s,%s,%s,'opening',%s,%s,'initial_snapshot',%s)""",
+                        (org_id,warehouse_id,product[0],quantity,unit,
+                         "snapshot:"+body.device_id+":stock:"+local_id))
+                    counts["opening_stock_items"] += 1
+
+            async def ensure_contact(kind: str, local_id: str, name: str, phone=None, address=None):
+                table = "suppliers" if kind == "supplier" else "customers"
+                mapping = supplier_ids if kind == "supplier" else customer_ids
+                key = local_id or name.strip().casefold()
+                if key in mapping:
+                    return mapping[key]
+                row = await (await connection.execute(
+                    f"INSERT INTO {table} (organization_id,name,phone,address) VALUES (%s,%s,%s,%s) RETURNING id",
+                    (org_id,name.strip() or ("مورد غير محدد" if kind=="supplier" else "زبون غير محدد"),phone,address))).fetchone()
+                mapping[key] = row[0]
+                counts[kind+"s"] += 1
+                return row[0]
+
+            for item in body.suppliers:
+                await ensure_contact("supplier",str(item.get("local_id","")),str(item.get("name","")),item.get("phone"),item.get("address"))
+            for item in body.customers:
+                await ensure_contact("customer",str(item.get("local_id","")),str(item.get("name","")),item.get("phone"),item.get("address"))
+
+            async def resolve_product(local_id: str, name: str, category: str, unit: str):
+                if local_id and local_id in product_ids:
+                    return product_ids[local_id]
+                key=(name.strip().casefold(),category.strip().casefold())
+                if key in product_by_name:
+                    return product_by_name[key]
+                if not name.strip():
+                    raise HTTPException(status_code=422,detail="Historical invoice line has no product name")
+                cat = await (await connection.execute(
+                    """INSERT INTO product_categories (organization_id,name) VALUES (%s,%s)
+                       ON CONFLICT (organization_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING id""",
+                    (org_id,category.strip() or "مواد البناء"))).fetchone()
+                row = await (await connection.execute(
+                    """INSERT INTO products (organization_id,category_id,name,base_unit)
+                       VALUES (%s,%s,%s,%s) RETURNING id""",
+                    (org_id,cat[0],name.strip(),unit.strip() or "وحدة"))).fetchone()
+                product_by_name[key]=row[0]
+                return row[0]
+
+            for index,item in enumerate(body.purchases):
+                supplier_name=str(item.get("supplier","مورد غير محدد")).strip() or "مورد غير محدد"
+                supplier_id=await ensure_contact("supplier","",supplier_name)
+                local_product=str(item.get("product_local_id",""))
+                product_name=str(item.get("product","")).strip()
+                category=str(item.get("inventory_category",item.get("category","مواد البناء")))
+                unit=str(item.get("stock_unit",item.get("input_unit","وحدة")))
+                product_id=await resolve_product(local_product,product_name,category,unit)
+                local_invoice=str(item.get("local_id",index))
+                invoice_number=("MIG-PUR-"+local_invoice)[:80]
+                entered=Decimal(str(item.get("input_quantity",item.get("quantity",0))))
+                base=Decimal(str(item.get("quantity",entered)))
+                price=Decimal(str(item.get("unit_price",item.get("stock_unit_price",0))))
+                total=Decimal(str(item.get("total",entered*price)))
+                paid=Decimal(str(item.get("paid",0)))
+                discount=Decimal(str(item.get("discount",0)))
+                invoice_total=max(Decimal("0"),total-discount)
+                if entered<=0 or base<=0 or paid<0 or paid>invoice_total:
+                    raise HTTPException(status_code=422,detail="Invalid historical purchase quantities or payment")
+                date_text=str(item.get("date",""))[:10]
+                invoice_date=date.fromisoformat(date_text) if len(date_text)==10 else date.today()
+                invoice=await (await connection.execute(
+                    """INSERT INTO purchase_invoices
+                       (organization_id,warehouse_id,supplier_id,invoice_number,invoice_date,subtotal,discount,total,paid,notes)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (org_id,warehouse_id,supplier_id,invoice_number,invoice_date,total,discount,invoice_total,paid,
+                     "Imported legacy invoice; stock is represented by opening snapshot."))).fetchone()
+                await connection.execute(
+                    """INSERT INTO purchase_lines
+                       (organization_id,purchase_invoice_id,product_id,entered_quantity,entered_unit,base_quantity,unit_price,line_total,measured_weight_kg)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (org_id,invoice[0],product_id,entered,str(item.get("input_unit",unit)),base,price,total,item.get("weight_kg")))
+                if paid>0:
+                    await connection.execute(
+                        """INSERT INTO payments (organization_id,party_type,party_id,invoice_type,invoice_id,amount,method)
+                           VALUES (%s,'supplier',%s,'purchase',%s,%s,'legacy_import')""",
+                        (org_id,supplier_id,invoice[0],paid))
+                counts["purchases"]+=1
+
+            for index,item in enumerate(body.sales):
+                client_name=str(item.get("client","زبون نقدي")).strip() or "زبون نقدي"
+                customer_id=None if client_name=="زبون نقدي" else await ensure_contact("customer","",client_name)
+                local_invoice=str(item.get("local_id",index))
+                invoice_number=("MIG-SAL-"+local_invoice)[:80]
+                lines=item.get("items",[])
+                subtotal=sum((Decimal(str(line.get("total",Decimal(str(line.get("quantity",0)))*Decimal(str(line.get("price",0)))))) for line in lines),Decimal("0"))
+                total=Decimal(str(item.get("total",subtotal)))
+                paid=Decimal(str(item.get("paid",0)))
+                if not lines or total<0 or paid<0 or paid>total:
+                    raise HTTPException(status_code=422,detail="Invalid historical sales invoice")
+                invoice=await (await connection.execute(
+                    """INSERT INTO sales_invoices
+                       (organization_id,warehouse_id,customer_id,invoice_number,subtotal,total,paid,notes)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (org_id,warehouse_id,customer_id,invoice_number,subtotal,total,paid,
+                     "Imported legacy invoice; stock is represented by opening snapshot."))).fetchone()
+                for line in lines:
+                    local_product=str(line.get("productId",""))
+                    product_name=str(line.get("name","")).strip()
+                    product_id=await resolve_product(local_product,product_name,"مواد البناء",str(line.get("unit","وحدة")))
+                    quantity=Decimal(str(line.get("quantity",0)))
+                    price=Decimal(str(line.get("price",0)))
+                    line_total=Decimal(str(line.get("total",quantity*price)))
+                    if quantity<=0 or price<0 or line_total<0:
+                        raise HTTPException(status_code=422,detail="Invalid historical sales line")
+                    await connection.execute(
+                        """INSERT INTO sales_lines (organization_id,sales_invoice_id,product_id,quantity,unit,unit_price,line_total)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                        (org_id,invoice[0],product_id,quantity,str(line.get("unit","وحدة")),price,line_total))
+                if paid>0 and customer_id is not None:
+                    await connection.execute(
+                        """INSERT INTO payments (organization_id,party_type,party_id,invoice_type,invoice_id,amount,method)
+                           VALUES (%s,'customer',%s,'sale',%s,%s,'legacy_import')""",
+                        (org_id,customer_id,invoice[0],paid))
+                counts["sales"]+=1
+
+            result={"status":"imported","counts":counts,"device_id":body.device_id}
+            await connection.execute(
+                """UPDATE sync_requests SET result_json=%s::jsonb
+                   WHERE organization_id=%s AND device_id=%s AND idempotency_key=%s""",
+                (json.dumps(result),org_id,body.device_id,body.idempotency_key))
+            return result
 
