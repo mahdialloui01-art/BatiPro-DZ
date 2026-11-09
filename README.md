@@ -29,7 +29,7 @@ docker compose up -d --build
 
 ### نسخ قاعدة PostgreSQL احتياطياً واسترجاعها
 
-احتفظ بنسخة خارج خادم الاستضافة، ولا تعتمد على Docker volume وحده. لإنشاء dump من مجلد المشروع:
+تعمل خدمة `db-backup` على أخذ dump يومي تلقائياً والاحتفاظ بآخر 7 أيام داخل volume مستقل. هذا يحمي من بعض أخطاء قاعدة البيانات لكنه ليس نسخة خارجية؛ انسخ مجلد النسخ إلى تخزين منفصل خارج الخادم بانتظام. لإنشاء dump من مجلد المشروع:
 
 ```bash
 docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > batipro-postgres.dump
@@ -41,7 +41,7 @@ docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -
 cat batipro-postgres.dump | docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists'
 ```
 
-اختبر الاسترجاع دورياً على قاعدة منفصلة قبل اعتباره خطة تعافٍ صالحة.
+اختبر الاسترجاع دورياً على قاعدة منفصلة قبل اعتباره خطة تعافٍ صالحة. يمكن استخراج أحدث dump من volume النسخ عبر `docker compose run --rm -v batipro_postgres_backups:/backups postgres:16-alpine ls -lh /backups`، وانسخ الملف خارج الخادم قبل أي صيانة كبيرة.
 
 > **تنبيه أمني:** لا تعرّض منفذ API العام عبر HTTP غير المشفّر. عند الاتصال عبر الإنترنت استعمل HTTPS خلف reverse proxy مع شهادة TLS وجدار ناري ونسخ احتياطي دوري لقاعدة البيانات. ملف Compose يفتح المنفذ 8000 للشبكة المضيفة فقط؛ إعداد TLS والنشر العام مسؤولية بيئة الاستضافة.
 
