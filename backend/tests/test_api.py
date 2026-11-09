@@ -361,3 +361,7 @@ def test_initial_snapshot_import_is_idempotent_and_does_not_replay_stock(monkeyp
         conflict = client.post("/sync/initial-snapshot", headers=headers, json=changed)
         assert conflict.status_code == 409
 
+        second_device = {**payload, "device_id": "windows-device-test-0002"}
+        second_import = client.post("/sync/initial-snapshot", headers=headers, json=second_device)
+        assert second_import.status_code == 409
+
