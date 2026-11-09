@@ -641,6 +641,8 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
             product_by_name: dict[tuple[str,str], UUID] = {}
             supplier_ids: dict[str, UUID] = {}
             customer_ids: dict[str, UUID] = {}
+            purchase_invoice_ids: dict[str, UUID] = {}
+            sales_invoice_ids: dict[str, UUID] = {}
             counts = {"products":0,"suppliers":0,"customers":0,"purchases":0,"sales":0,"opening_stock_items":0}
             for item in body.products:
                 local_id = str(item.get("local_id","")).strip()
@@ -721,6 +723,8 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                        VALUES (%s,%s,%s,%s) RETURNING id""",
                     (org_id,cat[0],name.strip(),unit.strip() or "وحدة"))).fetchone()
                 product_by_name[key]=row[0]
+                if local_id:
+                    product_ids[local_id]=row[0]
                 return row[0]
 
             for index,item in enumerate(body.purchases):
@@ -750,6 +754,7 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                     (org_id,warehouse_id,supplier_id,invoice_number,invoice_date,total,discount,invoice_total,paid,
                      "Imported legacy invoice; stock is represented by opening snapshot."))).fetchone()
+                purchase_invoice_ids[local_invoice]=invoice[0]
                 await connection.execute(
                     """INSERT INTO purchase_lines
                        (organization_id,purchase_invoice_id,product_id,entered_quantity,entered_unit,base_quantity,unit_price,line_total,measured_weight_kg)
@@ -784,6 +789,7 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                     (org_id,warehouse_id,customer_id,invoice_number,sales_date,subtotal,total,paid,
                      "Imported legacy invoice; stock is represented by opening snapshot."))).fetchone()
+                sales_invoice_ids[local_invoice]=invoice[0]
                 for line in lines:
                     local_product=str(line.get("productId",""))
                     product_name=str(line.get("name","")).strip()
@@ -804,7 +810,18 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
                         (org_id,customer_id,invoice[0],paid))
                 counts["sales"]+=1
 
-            result={"status":"imported","counts":counts,"device_id":body.device_id}
+            result={
+                "status":"imported",
+                "counts":counts,
+                "device_id":body.device_id,
+                "id_map":{
+                    "products":{key:str(value) for key,value in product_ids.items()},
+                    "suppliers":{key:str(value) for key,value in supplier_ids.items()},
+                    "customers":{key:str(value) for key,value in customer_ids.items()},
+                    "purchases":{key:str(value) for key,value in purchase_invoice_ids.items()},
+                    "sales":{key:str(value) for key,value in sales_invoice_ids.items()},
+                },
+            }
             await connection.execute(
                 """UPDATE sync_requests SET result_json=%s::jsonb
                    WHERE organization_id=%s AND device_id=%s AND idempotency_key=%s""",
