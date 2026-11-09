@@ -185,3 +185,52 @@ def test_purchase_and_sale_post_atomically_update_stock(monkeypatch):
         })
         assert oversell.status_code == 409
 
+def test_rebar_purchase_converts_weight_to_piece_count_on_server(monkeypatch):
+    monkeypatch.setenv("BATIPRO_TOKEN_SECRET", "test-token-secret-that-is-at-least-32-bytes")
+    monkeypatch.setenv("BATIPRO_BOOTSTRAP_SECRET", "bootstrap-secret-for-integration-tests")
+    email = f"steel-{uuid4().hex}@example.test"
+
+    with TestClient(app) as client:
+        registered = client.post("/auth/register", json={
+            "email": email,
+            "password": "Strong-test-password-123",
+            "display_name": "Steel Owner",
+            "organization_name": "Steel Store",
+            "bootstrap_secret": "bootstrap-secret-for-integration-tests",
+        })
+        assert registered.status_code == 201, registered.text
+        headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+        warehouse = client.get("/warehouses", headers=headers).json()[0]
+        supplier = client.post("/suppliers", headers=headers, json={"name": "مورد الحديد"})
+        product = client.post("/products", headers=headers, json={
+            "name": "حديد T12",
+            "category": "حديد تسليح T12",
+            "base_unit": "قضيب",
+            "tracking_mode": "piece",
+            "piece_weight_kg": "10.656",
+            "rebar_diameter_mm": "12",
+            "bar_length_m": "12",
+        })
+        assert product.status_code == 201, product.text
+
+        purchase = client.post("/purchases", headers=headers, json={
+            "warehouse_id": warehouse["id"],
+            "supplier_id": supplier.json()["id"],
+            "invoice_number": "STEEL-" + uuid4().hex[:12],
+            "invoice_date": "2026-11-09",
+            "lines": [{
+                "product_id": product.json()["id"],
+                "entered_quantity": "106.56",
+                "entered_unit": "kg",
+                "base_quantity": "10",
+                "unit_price": "1000",
+                "line_total": "106560",
+                "measured_weight_kg": "106.56",
+            }],
+        })
+        assert purchase.status_code == 201, purchase.text
+        stock = client.get("/stock", headers=headers).json()
+        steel = [row for row in stock if row["product_id"] == product.json()["id"]]
+        assert len(steel) == 1
+        assert steel[0]["quantity"] == "10.000"
+
