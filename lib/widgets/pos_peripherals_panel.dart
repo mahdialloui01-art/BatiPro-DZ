@@ -115,7 +115,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
         if (!_ports.contains(_selectedPort)) {
           _selectedPort = _ports.isNotEmpty ? _ports.first : null;
         }
-        _printerStatus = 'الطابعات: \${printers.length} • منافذ COM: \${ports.length}';
+        _printerStatus = 'الطابعات: ${printers.length} • منافذ COM: ${ports.length}';
       });
     } catch (error) {
       if (mounted) setState(() => _printerStatus = 'تعذر فحص الأجهزة: $error');
