@@ -181,7 +181,7 @@ class CloudSyncService {
           metadata['conflicts'] = [{
             'key': key, 'server_revision': remote['revision'],
             'server_value': value, 'server_deleted': deleted,
-            'local_value': localValue, 'local_deleted': localValue == null,
+            'local_value': localValue, 'local_deleted': false,
           }];
           await storage.setString(_metadataKey, jsonEncode({
             'cursor': cursor, 'documents': documents, 'conflicts': metadata['conflicts'],
