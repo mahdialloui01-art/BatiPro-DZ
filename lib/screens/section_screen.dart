@@ -172,6 +172,7 @@ class _SectionScreenState extends State<SectionScreen> {
       context: context,
       builder: (_) => _EntryEditor(
         title: widget.title,
+        isPurchase: _kind == 'purchases',
         fields: _fields,
         initial: old,
       ),
@@ -725,9 +726,10 @@ class _SectionScreenState extends State<SectionScreen> {
 
 class _EntryEditor extends StatefulWidget {
   final String title;
+  final bool isPurchase;
   final List<_FieldSpec> fields;
   final Map<String, dynamic>? initial;
-  const _EntryEditor({required this.title, required this.fields, this.initial});
+  const _EntryEditor({required this.title, required this.isPurchase, required this.fields, this.initial});
 
   @override
   State<_EntryEditor> createState() => _EntryEditorState();
@@ -780,9 +782,36 @@ class _EntryEditorState extends State<_EntryEditor> {
   }
 
   Widget _purchasePreview() {
-    final total = _numberValue('quantity') * _numberValue('unitPrice');
+    final enteredQuantity = _numberValue('quantity');
+    final unitPrice = _numberValue('unitPrice');
     final paid = _numberValue('paid');
+    final unit = (_controllers['inputUnit']?.text ?? 'kg').trim().toLowerCase();
+    final total = enteredQuantity * unitPrice;
     final remaining = (total - paid).clamp(0, double.infinity).toDouble();
+    final steelType = (_controllers['steelType']?.text ?? 'مواد عادية').trim();
+    final isSteel = steelType != 'مواد عادية';
+    final weightKg = enteredQuantity * (unit == 'ton' ? 1000 : 1);
+    final diameter = _numberValue('diameterMm');
+    final length = _numberValue('lengthM') > 0 ? _numberValue('lengthM') : 12;
+    final manualPieceWeight = _numberValue('pieceWeightKg');
+    final roundSolid = steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت';
+    final pieceWeight = roundSolid && diameter > 0
+        ? (3.141592653589793 / 4) * (diameter / 1000) * (diameter / 1000) * length * 7850
+        : manualPieceWeight;
+    final estimatedPieces = pieceWeight > 0 ? weightKg / pieceWeight : 0;
+
+    Widget line(String label, String value, {bool strong = false}) => Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(child: Text(label, style: TextStyle(fontWeight: strong ? FontWeight.w800 : FontWeight.normal))),
+          const SizedBox(width: 8),
+          Text(value, style: TextStyle(fontWeight: strong ? FontWeight.w900 : FontWeight.w500)),
+        ],
+      ),
+    );
+
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
@@ -790,47 +819,31 @@ class _EntryEditorState extends State<_EntryEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('ملخص الفاتورة قبل الحفظ',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            const Text('ملخص الفاتورة والتحويل قبل الحفظ', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
             const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('إجمالي الفاتورة قبل الدفع'),
-                Text(_previewMoney(total),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('المبلغ المدفوع'),
-                Text(_previewMoney(paid)),
-              ],
-            ),
-            const Divider(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('الباقي للمورد',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                Text(_previewMoney(remaining),
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
-              ],
-            ),
+            line('إجمالي الفاتورة قبل الدفع', _previewMoney(total), strong: true),
+            line('المبلغ المدفوع', _previewMoney(paid)),
+            const Divider(height: 12),
+            line('الباقي للمورد', _previewMoney(remaining), strong: true),
+            if (isSteel) ...[
+              const Divider(height: 12),
+              line('الوزن الصافي للمخزون', '${weightKg.toStringAsFixed(2)} كغ'),
+              if (pieceWeight > 0) line('وزن القضيب الواحد', '${pieceWeight.toStringAsFixed(3)} كغ'),
+              if (pieceWeight > 0)
+                line('عدد القضبان المحسوب', '${estimatedPieces.toStringAsFixed(2)} قضيب', strong: true)
+              else
+                const Text('أدخل قطر الحديد أو وزن القطعة لحساب عدد القضبان.', style: TextStyle(color: Colors.deepOrange, fontSize: 11)),
+            ],
             if (paid > total)
               const Padding(
                 padding: EdgeInsets.only(top: 7),
-                child: Text('تنبيه: المبلغ المدفوع أكبر من إجمالي الفاتورة.',
-                    style: TextStyle(color: Colors.red, fontSize: 12)),
+                child: Text('تنبيه: المبلغ المدفوع أكبر من إجمالي الفاتورة.', style: TextStyle(color: Colors.red, fontSize: 12)),
               ),
           ],
         ),
       ),
     );
   }
-
   @override
   void dispose() {
     for (final controller in _controllers.values) {
@@ -846,7 +859,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       final value = _controllers[field.key]!.text.trim();
       result[field.key] = field.number ? (double.tryParse(value.replaceAll(',', '.')) ?? 0) : value;
     }
-    if (widget.title.contains('المشتريات')) {
+    if (widget.isPurchase) {
       final enteredQuantity = (result['quantity'] as num).toDouble();
       final price = (result['unitPrice'] as num).toDouble();
       final paid = (result['paid'] as num).toDouble();
@@ -915,7 +928,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                             ? _controllers[field.key]!.text : field.options.first,
                         isExpanded: true,
                         decoration: InputDecoration(
-                          labelText: field.key == 'unitPrice' && widget.title.contains('المشتريات')
+                          labelText: field.key == 'unitPrice' && widget.isPurchase
                               ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
                               : field.label,
                         ),
@@ -933,7 +946,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                         controller: _controllers[field.key],
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
                         decoration: InputDecoration(
-                          labelText: field.key == 'unitPrice' && widget.title.contains('المشتريات')
+                          labelText: field.key == 'unitPrice' && widget.isPurchase
                               ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
                               : field.label,
                           helperText: field.key == 'diameterMm'
@@ -953,7 +966,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                         },
                       ),
               ),
-            if (widget.title.contains('المشتريات')) ...[
+            if (widget.isPurchase) ...[
               const SizedBox(height: 4),
               _purchasePreview(),
             ],
