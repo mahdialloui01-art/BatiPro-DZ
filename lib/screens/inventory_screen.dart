@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../data/app_storage.dart';
 import '../app/app_theme.dart';
 
 class _Product {
@@ -316,7 +316,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void dispose() { _search.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw != null) {
       try { _products = (jsonDecode(raw) as List).map((e) => _Product.fromJson(Map<String,dynamic>.from(e as Map))).toList(); }
@@ -334,7 +334,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     await prefs.setString(_storageKey, jsonEncode(_products.map((p) => p.toJson()).toList()));
   }
 
