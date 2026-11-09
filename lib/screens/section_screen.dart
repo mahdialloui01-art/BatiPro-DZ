@@ -1121,6 +1121,38 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
 
+  Future<void> _resolveCloudConflict() async {
+    final conflicts = await CloudSyncService.pendingConflicts();
+    if (conflicts.isEmpty || !mounted) return;
+    final conflict = conflicts.first;
+    final key = conflict['key']?.toString() ?? 'بيانات';
+    final keepLocal = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعارض في المزامنة'),
+        content: Text(
+          'تم تعديل "$key" على هذا الجهاز وعلى الخادم. لم نستبدل أي نسخة تلقائياً. '
+          'اختر النسخة التي تريد اعتمادها؛ يمكنك إنشاء نسخة احتياطية قبل الاختيار.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('اعتماد نسخة الخادم'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('الاحتفاظ بنسخة هذا الجهاز'),
+          ),
+        ],
+      ),
+    );
+    if (keepLocal == null || !mounted) return;
+    await CloudSyncService.resolveConflict(key, keepLocal: keepLocal);
+    if (mounted) setState(() => _syncStatus =
+        keepLocal ? 'احتفظنا بنسخة هذا الجهاز. أعد المزامنة لإرسالها للخادم.'
+                  : 'اعتمدنا نسخة الخادم. أعد المزامنة لتحديث بقية البيانات.');
+  }
+
   Future<void> _runCloudSync() async {
     if (_syncBusy || !ApiClient.instance.isAuthenticated) return;
     setState(() => _syncBusy = true);
@@ -1131,6 +1163,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (mounted) setState(() => _syncStatus = 'المزامنة توقفت لحماية البيانات: $error');
+      if (mounted) {
+        try {
+          await _resolveCloudConflict();
+        } catch (resolveError) {
+          if (mounted) setState(() => _syncStatus = 'تعذر حل التعارض: $resolveError');
+        }
+      }
     } finally {
       if (mounted) setState(() => _syncBusy = false);
     }
