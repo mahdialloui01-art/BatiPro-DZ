@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import '../data/app_storage.dart';
+import '../data/backup_service.dart';
 import '../data/api_client.dart';
 import '../data/initial_sync_service.dart';
 import '../app/app_theme.dart';
@@ -998,6 +1001,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   final _apiPassword = TextEditingController();
   bool _apiBusy = false;
   bool _syncBusy = false;
+  bool _backupBusy = false;
+  String _backupStatus = 'النسخ التلقائي اليومي يحتفظ بآخر 7 نسخ على هذا الجهاز.';
   String _syncStatus = 'لم تتم المزامنة الأولية بعد';
   String _apiStatus = 'غير مربوط بالخادم';
   bool _loading = true;
@@ -1113,6 +1118,62 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     }
   }
 
+  Future<void> _createBackup() async {
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'BatiProDZ-backup-${DateTime.now().toIso8601String().substring(0, 10)}.json',
+      );
+      if (location == null) return;
+      final contents = await AppStorage.exportBackupJson();
+      await File(location.path).writeAsString(contents, flush: true);
+      if (mounted) setState(() => _backupStatus = 'تم إنشاء النسخة الاحتياطية بنجاح: ${location.path}');
+    } catch (error) {
+      if (mounted) setState(() => _backupStatus = 'فشل إنشاء النسخة الاحتياطية: $error');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    if (_backupBusy) return;
+    final selected = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'BatiPro backup', extensions: ['json']),
+    ]);
+    if (selected == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استرجاع نسخة احتياطية؟'),
+        content: const Text(
+          'تحذير: سيؤدي الاسترجاع إلى استبدال جميع بيانات BatiPro الموجودة حالياً على هذا الجهاز ببيانات الملف المختار. '
+          'أنشئ نسخة احتياطية من الحالة الحالية أولاً إذا كنت تريد الاحتفاظ بها.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استرجاع واستبدال البيانات')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _backupBusy = true);
+    try {
+      final count = await AppStorage.restoreBackupJson(await selected.readAsString());
+      final storage = await AppStorage.getInstance();
+      await storage.setString('batipro_auto_backup_day', '');
+      final automatic = await BackupService.createAutomaticDailyBackup();
+      if (mounted) setState(() => _backupStatus =
+          'تم استرجاع $count سجلاً. أُنشئت نسخة أمان للحالة المسترجعة: ${automatic.path}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم استرجاع البيانات. أعد فتح القسم لتحديث العرض.')));
+    } catch (error) {
+      if (mounted) setState(() => _backupStatus = 'تعذر الاسترجاع؛ لم يتم قبول الملف: $error');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
   Future<void> _logoutApi() async {
     await ApiClient.instance.logout();
     if (mounted) setState(() => _apiStatus = 'تم تسجيل الخروج من الخادم');
@@ -1145,6 +1206,31 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 12),
+        const Text('النسخ الاحتياطي واسترجاع البيانات', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 6),
+        const Text(
+          'يُنشئ التطبيق نسخة JSON كاملة من بياناته المحلية يومياً عند التشغيل، ويحافظ على آخر 7 نسخ تلقائية. يمكنك أيضاً حفظ نسخة خارج الجهاز أو استرجاع ملف سابق.',
+          style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: _backupBusy ? null : _createBackup,
+          icon: _backupBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.backup_outlined),
+          label: const Text('إنشاء نسخة احتياطية الآن'),
+        )),
+        const SizedBox(height: 7),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: _backupBusy ? null : _restoreBackup,
+          icon: const Icon(Icons.restore),
+          label: const Text('استرجاع نسخة احتياطية'),
+        )),
+        const SizedBox(height: 8),
+        Text(_backupStatus, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+        const SizedBox(height: 16),
         const Text('الاتصال بخادم PostgreSQL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
         const SizedBox(height: 5),
         const Text('أدخل عنوان API الذي يستضيفه مسؤول النظام. لا تضع كلمة مرور قاعدة البيانات هنا.',
