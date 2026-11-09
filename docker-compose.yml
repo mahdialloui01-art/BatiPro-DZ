@@ -20,6 +20,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-batipro}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-batipro}
+      BATIPRO_TOKEN_SECRET: ${BATIPRO_TOKEN_SECRET:?Set BATIPRO_TOKEN_SECRET in .env}
+      BATIPRO_BOOTSTRAP_SECRET: ${BATIPRO_BOOTSTRAP_SECRET:?Set BATIPRO_BOOTSTRAP_SECRET in .env}
     depends_on:
       db:
         condition: service_healthy
