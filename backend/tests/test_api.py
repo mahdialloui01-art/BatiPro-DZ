@@ -371,3 +371,74 @@ def test_initial_snapshot_import_is_idempotent_and_does_not_replay_stock(monkeyp
         second_import = client.post("/sync/initial-snapshot", headers=headers, json=second_device)
         assert second_import.status_code == 409
 
+
+
+def test_continuous_sync_is_idempotent_conflict_safe_and_pullable(monkeypatch):
+    monkeypatch.setenv("BATIPRO_TOKEN_SECRET", "test-token-secret-that-is-at-least-32-bytes")
+    monkeypatch.setenv("BATIPRO_BOOTSTRAP_SECRET", "bootstrap-secret-for-integration-tests")
+    with TestClient(app) as client:
+        registered = client.post("/auth/register", json={
+            "email": f"sync-{uuid4().hex}@example.test",
+            "password": "Strong-test-password-123",
+            "display_name": "Sync Owner",
+            "organization_name": "Sync Store",
+            "bootstrap_secret": "bootstrap-secret-for-integration-tests",
+        })
+        assert registered.status_code == 201, registered.text
+        headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+        device_a = "device-a-" + uuid4().hex
+        device_b = "device-b-" + uuid4().hex
+        mutation_id = "mutation-" + uuid4().hex
+        payload = {
+            "device_id": device_a,
+            "mutations": [{
+                "mutation_id": mutation_id,
+                "key": "batipro_products_v1",
+                "value": '[{"id":"p1","name":"حديد T12"}]',
+                "deleted": False,
+                "base_revision": 0,
+            }],
+        }
+        pushed = client.post("/sync/push", headers=headers, json=payload)
+        assert pushed.status_code == 200, pushed.text
+        result = pushed.json()
+        assert result["has_conflicts"] is False
+        assert result["accepted"][0]["revision"] == 1
+        duplicate = client.post("/sync/push", headers=headers, json=payload)
+        assert duplicate.status_code == 200, duplicate.text
+        assert duplicate.json()["accepted"][0]["duplicate"] is True
+
+        pull = client.get("/sync/pull", headers=headers, params={
+            "after": 0, "limit": 100, "device_id": device_b,
+        })
+        assert pull.status_code == 200, pull.text
+        changes = pull.json()["changes"]
+        assert len(changes) == 1
+        assert changes[0]["key"] == "batipro_products_v1"
+        assert changes[0]["value"] == payload["mutations"][0]["value"]
+        assert changes[0]["revision"] == 1
+
+        conflict = client.post("/sync/push", headers=headers, json={
+            "device_id": device_b,
+            "mutations": [{
+                "mutation_id": "conflict-" + uuid4().hex,
+                "key": "batipro_products_v1",
+                "value": "stale overwrite",
+                "deleted": False,
+                "base_revision": 0,
+            }],
+        })
+        assert conflict.status_code == 200, conflict.text
+        assert conflict.json()["has_conflicts"] is True
+        assert conflict.json()["conflicts"][0]["server_revision"] == 1
+
+        forbidden_key = client.post("/sync/push", headers=headers, json={
+            "device_id": device_a,
+            "mutations": [{
+                "mutation_id": "invalid-" + uuid4().hex,
+                "key": "batipro_api_access_token",
+                "value": "secret",
+                "base_revision": 0,
+            }],
+        })
+        assert forbidden_key.status_code == 422
