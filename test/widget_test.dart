@@ -31,7 +31,8 @@ void main() {
   });
 
   testWidgets('Dashboard sales chart switches between day, week, month and year', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    await AppStorage.initialize(inMemory: true);
+    await AppStorage.clearAll();
     await tester.pumpWidget(const BatiProApp());
     await tester.pumpAndSettle();
 
