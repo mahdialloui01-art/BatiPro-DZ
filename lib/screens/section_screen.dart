@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../data/app_storage.dart';
 import '../data/api_client.dart';
+import '../data/initial_sync_service.dart';
 import '../app/app_theme.dart';
 
 class _FieldSpec {
@@ -996,6 +997,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   final _apiEmail = TextEditingController();
   final _apiPassword = TextEditingController();
   bool _apiBusy = false;
+  bool _syncBusy = false;
+  String _syncStatus = 'لم تتم المزامنة الأولية بعد';
   String _apiStatus = 'غير مربوط بالخادم';
   bool _loading = true;
 
@@ -1074,6 +1077,42 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     }
   }
 
+  Future<void> _runInitialSync() async {
+    if (_syncBusy || !ApiClient.instance.isAuthenticated) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استيراد البيانات إلى PostgreSQL؟'),
+        content: const Text(
+          'سيتم إرسال نسخة من المنتجات والمخزون الحالي والموردين والزبائن وفواتير الشراء والبيع القديمة إلى خادمك. '
+          'المخزون الحالي سيُسجّل كرصد افتتاحي، والفواتير القديمة ستُحفظ كسجل تاريخي دون إعادة إضافة أو خصم مخزونها. '
+          'لن تُحذف بيانات SQLite من هذا الجهاز. هذه عملية استيراد أولية وليست مزامنة مستمرة للتعديلات الجديدة.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد الاستيراد')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _syncBusy = true);
+    try {
+      final result = await InitialSyncService.run();
+      final counts = Map<String, dynamic>.from(result['counts'] as Map);
+      final summary = 'المنتجات: ${counts['products'] ?? 0} • المخزون: ${counts['opening_stock_items'] ?? 0} • '
+          'المشتريات: ${counts['purchases'] ?? 0} • المبيعات: ${counts['sales'] ?? 0}';
+      if (mounted) setState(() => _syncStatus = result['already_imported_on_device'] == true
+          ? 'سبق استيراد هذه البيانات على هذا الجهاز. $summary'
+          : 'نجح الاستيراد الأولي. $summary');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_syncStatus)));
+    } catch (error) {
+      if (mounted) setState(() => _syncStatus = 'لم تكتمل المزامنة: $error');
+    } finally {
+      if (mounted) setState(() => _syncBusy = false);
+    }
+  }
+
   Future<void> _logoutApi() async {
     await ApiClient.instance.logout();
     if (mounted) setState(() => _apiStatus = 'تم تسجيل الخروج من الخادم');
@@ -1145,6 +1184,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             Expanded(child: Text(_apiStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink))),
           ]),
         ),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runInitialSync,
+          icon: _syncBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.cloud_upload_outlined),
+          label: Text(_syncBusy ? 'جارٍ استيراد البيانات...' : 'استيراد بيانات هذا الجهاز إلى PostgreSQL'),
+        )),
+        const SizedBox(height: 8),
+        Text(_syncStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink, height: 1.5)),
+        const SizedBox(height: 5),
+        const Text('الاستيراد الأولي لا يكرر حركات المخزون. المزامنة التلقائية للتعديلات الجديدة والعمل دون إنترنت ستأتي في مرحلة مستقلة.',
+            style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
         const SizedBox(height: 12),
         const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
