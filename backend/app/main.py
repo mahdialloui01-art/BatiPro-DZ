@@ -474,7 +474,7 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
                        (organization_id,warehouse_id,product_id,movement_type,quantity_delta,
                         unit,source_type,source_id,idempotency_key)
                        VALUES (%s,%s,%s,'purchase',%s,%s,'purchase',%s,%s)""",
-                    (user["organization_id"],body.warehouse_id,line.product_id,line.base_quantity,
+                    (user["organization_id"],body.warehouse_id,line.product_id,expected_base,
                      base_unit,invoice_id,"purchase:"+str(invoice_id)+":"+str(index)))
             if body.paid > 0:
                 await connection.execute(
