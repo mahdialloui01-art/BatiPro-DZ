@@ -29,6 +29,61 @@ class CloudSyncService {
   }
 
 
+
+  static String? _mergeRecordArrays(String? baseJson, String? localJson, String? serverJson) {
+    if (localJson == null || serverJson == null) return null;
+    try {
+      final localRaw = jsonDecode(localJson);
+      final serverRaw = jsonDecode(serverJson);
+      final baseRaw = baseJson == null ? <dynamic>[] : jsonDecode(baseJson);
+      if (localRaw is! List || serverRaw is! List || baseRaw is! List) return null;
+
+      Map<String, Map<String, dynamic>> index(List<dynamic> values) {
+        final result = <String, Map<String, dynamic>>{};
+        for (final raw in values) {
+          if (raw is! Map || raw['id'] == null) throw const FormatException('Missing record id');
+          final id = raw['id'].toString().trim();
+          if (id.isEmpty || result.containsKey(id)) throw const FormatException('Invalid record id');
+          result[id] = Map<String, dynamic>.from(raw);
+        }
+        return result;
+      }
+
+      final base = index(baseRaw);
+      final local = index(localRaw);
+      final server = index(serverRaw);
+      bool equal(Map<String, dynamic>? a, Map<String, dynamic>? b) =>
+          a == null || b == null ? a == null && b == null : jsonEncode(a) == jsonEncode(b);
+      final ids = <String>{...base.keys, ...local.keys, ...server.keys};
+      final merged = <Map<String, dynamic>>[];
+      for (final id in ids) {
+        final hasBase = base.containsKey(id);
+        final hasLocal = local.containsKey(id);
+        final hasServer = server.containsKey(id);
+        final b = base[id], l = local[id], r = server[id];
+        if (!hasBase) {
+          if (hasLocal && hasServer && !equal(l, r)) return null;
+          if (hasLocal) merged.add(l!);
+          else if (hasServer) merged.add(r!);
+          continue;
+        }
+        final localChanged = hasLocal != hasBase || (hasLocal && !equal(l, b));
+        final serverChanged = hasServer != hasBase || (hasServer && !equal(r, b));
+        if (localChanged && serverChanged) {
+          if (hasLocal != hasServer || (hasLocal && !equal(l, r))) return null;
+          if (hasLocal) merged.add(l!);
+        } else if (localChanged) {
+          if (hasLocal) merged.add(l!);
+        } else if (hasServer) {
+          merged.add(r!);
+        }
+      }
+      return jsonEncode(merged);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> pendingConflicts() async {
     final storage = await AppStorage.getInstance();
     final metadata = _readMetadata(storage);
@@ -174,28 +229,50 @@ class CloudSyncService {
       await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
       final conflicts = (response['conflicts'] as List? ?? const []);
       if (conflicts.isNotEmpty) {
-        final pending = (metadata['conflicts'] as List? ?? const [])
-            .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        final pending = <Map<String, dynamic>>[];
+        var mergedAny = false;
         for (final raw in conflicts) {
           final conflict = Map<String, dynamic>.from(raw as Map);
           final key = conflict['key'] as String;
-          final localValue = storage.getString(key);
-          if (!pending.any((item) => item['key'] == key)) {
+          final known = documents[key] is Map
+              ? Map<String, dynamic>.from(documents[key] as Map)
+              : <String, dynamic>{};
+          final serverDeleted = conflict['server_deleted'] == true;
+          final serverValue = conflict['server_value'] as String?;
+          final merged = _mergeRecordArrays(
+            known['value'] as String?,
+            storage.getString(key),
+            serverDeleted ? '[]' : serverValue,
+          );
+          if (merged != null && !serverDeleted) {
+            await storage.setString(key, merged);
+            documents[key] = {
+              'revision': conflict['server_revision'],
+              'value': serverValue,
+              'deleted': false,
+            };
+            mergedAny = true;
+          } else {
+            final localValue = storage.getString(key);
             pending.add({
               'key': key,
               'server_revision': conflict['server_revision'],
-              'server_value': conflict['server_value'],
-              'server_deleted': conflict['server_deleted'] == true,
+              'server_value': serverValue,
+              'server_deleted': serverDeleted,
               'local_value': localValue,
               'local_deleted': localValue == null,
             });
           }
         }
-        metadata['conflicts'] = pending;
+        if (pending.isNotEmpty) metadata['conflicts'] = pending;
         await storage.setString(_metadataKey, jsonEncode({
-          'cursor': cursor, 'documents': documents, 'conflicts': pending,
+          'cursor': cursor, 'documents': documents,
+          if (pending.isNotEmpty) 'conflicts': pending,
         }));
-        throw StateError('توجد بيانات متعارضة. اختر النسخة التي تريد الاحتفاظ بها.');
+        if (mergedAny && pending.isEmpty) {
+          throw StateError('دمجنا السجلات الجديدة غير المتعارضة. أعد المزامنة لإرسال الدمج إلى الخادم.');
+        }
+        throw StateError('توجد تعديلات متعارضة على نفس السجل. اختر النسخة التي تريد الاحتفاظ بها.');
       }
     }
 
@@ -218,6 +295,18 @@ class CloudSyncService {
         final localMatchesBase = known['deleted'] == true
             ? localValue == null : localValue == known['value'];
         if (change['device_id'] != deviceId && !localMatchesBase) {
+          final merged = _mergeRecordArrays(
+            known['value'] as String?,
+            localValue,
+            deleted ? '[]' : value,
+          );
+          if (merged != null && !deleted) {
+            await storage.setString(key, merged);
+            documents[key] = {'revision': revision, 'value': value, 'deleted': false};
+            processedCursor = (change['event_id'] as num).toInt();
+            pulled++;
+            continue;
+          }
           final pending = (metadata['conflicts'] as List? ?? const [])
               .map((item) => Map<String, dynamic>.from(item as Map)).toList();
           if (!pending.any((item) => item['key'] == key)) {
