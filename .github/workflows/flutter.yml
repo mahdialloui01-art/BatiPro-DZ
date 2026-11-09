@@ -87,43 +87,8 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: false
-          script: |
-            set -eu
-            adb wait-for-device
-            boot_wait=0
-            until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
-              sleep 3
-              boot_wait=$((boot_wait + 3))
-              if [ "$boot_wait" -ge 600 ]; then
-                echo "ERROR: Android emulator did not finish booting within 600 seconds"
-                adb devices -l || true
-                exit 1
-              fi
-            done
-            echo "Emulator boot completed; installing APK"
-            install_ok=0
-            for attempt in 1 2 3; do
-              if adb install -r build/app/outputs/flutter-apk/app-release.apk; then install_ok=1; break; fi
-              echo "ADB install attempt $attempt failed; restarting ADB connection"
-              adb reconnect || true
-              sleep 5
-            done
-            [ "$install_ok" = "1" ] || { echo "ERROR: APK installation failed after 3 attempts"; exit 1; }
-            adb shell am force-stop com.example.batipro_dz
-            adb shell am start -W -n com.example.batipro_dz/.MainActivity
-            app_wait=0
-            app_pid=""
-            until [ -n "$app_pid" ]; do
-              app_pid="$(adb shell pidof com.example.batipro_dz 2>/dev/null | tr -d '\r' || true)"
-              sleep 2
-              app_wait=$((app_wait + 2))
-              if [ "$app_wait" -ge 30 ]; then
-                echo "ERROR: BatiPro DZ process did not remain alive after launch"
-                adb logcat -d -t 300 || true
-                exit 1
-              fi
-            done
-            echo "PASS: BatiPro DZ launched successfully; PID=$app_pid"
+          # The action executes each script line in a separate shell; keep this as one command.
+          script: bash .github/scripts/android-emulator-smoke-test.sh
       - uses: actions/upload-artifact@v4
         with:
           name: BatiPro-DZ-Android-release
