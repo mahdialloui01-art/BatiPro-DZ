@@ -347,6 +347,12 @@ def test_initial_snapshot_import_is_idempotent_and_does_not_replay_stock(monkeyp
             "products": 1, "suppliers": 1, "customers": 1,
             "purchases": 1, "sales": 1, "opening_stock_items": 1,
         }
+        id_map = first.json()["id_map"]
+        assert id_map["products"]["local-product-1"]
+        assert id_map["suppliers"]["local-supplier-1"]
+        assert id_map["customers"]["local-customer-1"]
+        assert id_map["purchases"]["legacy-purchase-1"]
+        assert id_map["sales"]["legacy-sale-1"]
 
         repeated = client.post("/sync/initial-snapshot", headers=headers, json=payload)
         assert repeated.status_code == 200, repeated.text
