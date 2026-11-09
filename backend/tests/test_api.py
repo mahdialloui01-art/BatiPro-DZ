@@ -436,6 +436,24 @@ def test_continuous_sync_is_idempotent_conflict_safe_and_pullable(monkeypatch):
         assert conflict.json()["has_conflicts"] is True
         assert conflict.json()["conflicts"][0]["server_revision"] == 1
 
+        deleted = client.post("/sync/push", headers=headers, json={
+            "device_id": device_b,
+            "mutations": [{
+                "mutation_id": "delete-" + uuid4().hex,
+                "key": "batipro_products_v1",
+                "value": None,
+                "deleted": True,
+                "base_revision": 1,
+            }],
+        })
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json()["has_conflicts"] is False
+        after_delete = client.get("/sync/pull", headers=headers, params={
+            "after": changes[0]["event_id"], "limit": 100, "device_id": device_a,
+        })
+        assert after_delete.status_code == 200
+        assert after_delete.json()["changes"][0]["deleted"] is True
+
         forbidden_key = client.post("/sync/push", headers=headers, json={
             "device_id": device_a,
             "mutations": [{
