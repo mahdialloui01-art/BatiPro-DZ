@@ -6,6 +6,7 @@ import '../data/app_storage.dart';
 import '../data/backup_service.dart';
 import '../data/api_client.dart';
 import '../data/initial_sync_service.dart';
+import '../data/cloud_sync_service.dart';
 import '../app/app_theme.dart';
 
 class _FieldSpec {
@@ -1118,6 +1119,22 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     }
   }
 
+
+  Future<void> _runCloudSync() async {
+    if (_syncBusy || !ApiClient.instance.isAuthenticated) return;
+    setState(() => _syncBusy = true);
+    try {
+      final result = await CloudSyncService.synchronize();
+      final message = 'اكتملت المزامنة: أُرسل ${result['pushed']} تغيير واستُقبل ${result['pulled']} تغيير. رقم المتابعة: ${result['cursor']}';
+      if (mounted) setState(() => _syncStatus = message);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (mounted) setState(() => _syncStatus = 'المزامنة توقفت لحماية البيانات: $error');
+    } finally {
+      if (mounted) setState(() => _syncBusy = false);
+    }
+  }
+
   Future<void> _createBackup() async {
     if (_backupBusy) return;
     setState(() => _backupBusy = true);
@@ -1278,10 +1295,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               : const Icon(Icons.cloud_upload_outlined),
           label: Text(_syncBusy ? 'جارٍ استيراد البيانات...' : 'استيراد بيانات هذا الجهاز إلى PostgreSQL'),
         )),
+
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runCloudSync,
+          icon: _syncBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync),
+          label: const Text('مزامنة التغييرات بين الأجهزة الآن'),
+        )),
         const SizedBox(height: 8),
         Text(_syncStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink, height: 1.5)),
         const SizedBox(height: 5),
-        const Text('الاستيراد الأولي لا يكرر حركات المخزون. المزامنة التلقائية للتعديلات الجديدة والعمل دون إنترنت ستأتي في مرحلة مستقلة.',
+        const Text('الاستيراد الأولي ينقل السجل القديم مرة واحدة. زر المزامنة يرسل التعديلات المحلية ويستقبل تغييرات الأجهزة الأخرى. عند تعديل نفس القسم على جهازين، تتوقف المزامنة وتبلغك بالتعارض بدلاً من الكتابة فوق البيانات بصمت.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
         const SizedBox(height: 12),
         const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
