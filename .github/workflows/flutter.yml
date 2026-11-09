@@ -75,9 +75,9 @@ jobs:
           unzip -t "$APK" | tail -n 2
           echo "=== Android package metadata ==="
           BADGING="$("$TOOLS_DIR/aapt" dump badging "$APK")"
-          printf '%s\\n' "$BADGING" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)"
-          printf '%s\\n' "$BADGING" | grep -q "^package: name='com.example.batipro_dz'"
-          printf '%s\\n' "$BADGING" | grep -q "^launchable-activity: name='com.example.batipro_dz.MainActivity'"
+          echo "$BADGING" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)"
+          echo "$BADGING" | grep -q "^package: name='com.example.batipro_dz'"
+          echo "$BADGING" | grep -q "^launchable-activity: name='com.example.batipro_dz.MainActivity'"
           echo "=== APK signature verification ==="
           "$TOOLS_DIR/apksigner" verify --verbose --print-certs "$APK"
       - name: Test installation on Android emulator
