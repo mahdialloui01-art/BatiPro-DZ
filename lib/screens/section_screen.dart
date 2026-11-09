@@ -32,10 +32,11 @@ class _SectionScreenState extends State<SectionScreen> {
       case 'purchases':
         return const [
           _FieldSpec('product', 'اسم المادة / المقاس'),
+          _FieldSpec('category', 'صنف المخزون', options: ['مواد البناء', 'الإسمنت', 'إسمنت CEM I 42.5', 'إسمنت CEM II 32.5', 'إسمنت CEM II 42.5', 'إسمنت مقاوم للأملاح CRS', 'إسمنت أبيض', 'إسمنت البناء', 'الآجر', 'آجر 6 ثقوب', 'آجر 8 ثقوب', 'آجر 10 ثقوب', 'آجر 12 ثقوب', 'آجر 15 ثقوب', 'آجر 16 ثقوب', 'آجر 20 ثقوب', 'آجر أحمر مفرغ', 'آجر مصمت', 'بلوك إسمنتي', 'ڨرافي 0/4', 'ڨرافي 4/8', 'ڨرافي 3/8', 'ڨرافي 8/15', 'ڨرافي 15/25', 'ڨرافي 25/40', 'ڨرافي 40/60', 'رمل']),
           _FieldSpec('steelType', 'نوع المادة', options: ['مواد عادية', 'حديد تسليح', 'سلك رباط', 'شبك ملحوم', 'حديد دائري مصمت', 'حديد مربع أو مستطيل مصمت', 'أنبوب دائري', 'أنبوب مربع أو مستطيل', 'عوارض IPE', 'عوارض HEA', 'عوارض IPN', 'زوايا حديد L', 'مقاطع UPN / UPE', 'صفائح وألواح حديد', 'فلات بار (حديد مسطح)', 'قضبان ملولبة', 'مسامير وبراغي', 'حديد آخر']),
           _FieldSpec('supplier', 'المورد'),
           _FieldSpec('quantity', 'الكمية المشتراة', number: true),
-          _FieldSpec('inputUnit', 'وحدة الوزن: kg أو ton'),
+          _FieldSpec('inputUnit', 'وحدة الشراء', options: ['kg', 'ton', 'كيس', 'حبة', 'متر', 'متر مكعب', 'وحدة']),
           _FieldSpec('diameterMm', 'مقاس حديد التسليح', number: true, optional: true, options: ['8', '10', '12', '14', '16', '20', '25', '32']),
           _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
           _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
@@ -247,7 +248,7 @@ class _SectionScreenState extends State<SectionScreen> {
         stock.insert(0, {
           'id': DateTime.now().microsecondsSinceEpoch.toString(),
           'name': cleanName,
-          'category': isSteel ? source['steelType'] : 'مواد البناء',
+          'category': source?['inventoryCategory'] ?? (isSteel ? source['steelType'] : source?['category'] ?? 'مواد البناء'),
           'unit': unit,
           'quantity': quantityDelta,
           'minimum': 0,
@@ -275,18 +276,22 @@ class _SectionScreenState extends State<SectionScreen> {
         final unit = (source?['stockUnit'] ?? '').toString();
         if (unit.isNotEmpty) product['unit'] = unit;
         if (source != null) {
-          if (source['steelType'] != null &&
-              source['steelType'] != 'مواد عادية') {
-            product['category'] = source['steelType'];
+          if (source['steelType'] != null && source['steelType'] != 'مواد عادية') {
+            product['category'] = source['inventoryCategory'] ?? source['steelType'];
             product['steelWeightKg'] = source['weightKg'];
             product['pieceWeightKg'] = source['pieceWeightKgCalculated'];
             product['diameterMm'] = source['diameterMm'];
             product['lengthM'] = source['lengthM'];
+          } else if (source['inventoryCategory'] != null) {
+            product['category'] = source['inventoryCategory'];
           }
         }
       } else {
-        product['quantity'] =
-            (currentQuantity + quantityDelta).clamp(0, double.infinity).toDouble();
+        final nextQuantity = currentQuantity + quantityDelta;
+        if (nextQuantity < -0.0000001) {
+          throw StateError('لا يمكن تعديل وصل الشراء لأن الكمية الأصلية لم تعد متوفرة كاملة في المخزون.');
+        }
+        product['quantity'] = nextQuantity.clamp(0, double.infinity).toDouble();
       }
     }
 
@@ -330,6 +335,10 @@ class _SectionScreenState extends State<SectionScreen> {
           final product = stock[index];
           final current = (product['quantity'] as num).toDouble();
           final purchased = (item['quantity'] as num?)?.toDouble() ?? 0;
+          if (current + 0.0000001 < purchased) {
+            _toast('لا يمكن حذف وصل الشراء: جزء من الكمية خرج من المخزون.');
+            return;
+          }
           product['quantity'] = (current - purchased).clamp(0, double.infinity);
           await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
         }
@@ -705,6 +714,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (value != null) return value.toString();
     if (key == 'paid') return '0';
     if (key == 'inputUnit') return 'kg';
+    if (key == 'category') return 'مواد البناء';
     if (key == 'steelType') return 'مواد عادية';
     if (key == 'lengthM') return '12';
     if (key == 'diameterMm') return '12';
@@ -744,7 +754,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       final diameter = (result['diameterMm'] as num?)?.toDouble() ?? 0;
       final manualWeight = (result['pieceWeightKg'] as num?)?.toDouble() ?? 0;
       final unit = (result['inputUnit'] ?? 'kg').toString().trim().toLowerCase();
-      if (unit != 'kg' && unit != 'ton') {
+      if (iron && unit != 'kg' && unit != 'ton') {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
         return;
       }
@@ -770,10 +780,13 @@ class _EntryEditorState extends State<_EntryEditor> {
         result['quantity'] = pieces;
         result['stockUnitPrice'] = total / pieces;
         result['unitPrice'] = price;
-        result['stockUnit'] = (steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت' || steelType == 'حديد مربع أو مستطيل مصمت') ? 'قضيب' : 'قطعة';
+        result['stockUnit'] = (steelType == 'حديد تسليح' || steelType == 'حديد دائري مصمت') ? 'قضيب' : 'قطعة';
+        result['inventoryCategory'] = steelType == 'حديد تسليح' ? 'حديد تسليح T${diameter.round()}' : steelType;
       } else {
         result['quantity'] = enteredQuantity;
         result['stockUnitPrice'] = price;
+        result['stockUnit'] = unit;
+        result['inventoryCategory'] = (result['category'] ?? 'مواد البناء').toString();
       }
       if (paid > total) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المبلغ المدفوع أكبر من الإجمالي.')));

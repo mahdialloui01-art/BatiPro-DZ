@@ -30,7 +30,8 @@ class InventoryScreen extends StatefulWidget {
 
 class _ProductEditorDialog extends StatefulWidget {
   final _Product? product;
-  const _ProductEditorDialog({this.product});
+  final String? initialCategory;
+  const _ProductEditorDialog({this.product, this.initialCategory});
 
   @override
   State<_ProductEditorDialog> createState() => _ProductEditorDialogState();
@@ -71,6 +72,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   late final TextEditingController _diameter;
   late final TextEditingController _length;
   late final TextEditingController _pieceWeight;
+  late final TextEditingController _unit;
   late String _category;
   late String _weightUnit;
 
@@ -82,21 +84,23 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     super.initState();
     final p = widget.product;
     _name = TextEditingController(text: p?.name ?? '');
-    _category = _categories.contains(p?.category) ? p!.category : (p?.category ?? 'مواد البناء');
+    _category = p?.category ?? (initialCategory != null && _categories.contains(initialCategory) ? initialCategory! : 'مواد البناء');
     _quantity = TextEditingController(text: p?.quantity.toString() ?? '0');
     _minimum = TextEditingController(text: p?.minimum.toString() ?? '5');
     _purchasePrice = TextEditingController(text: p?.purchasePrice.toString() ?? '0');
     _salePrice = TextEditingController(text: p?.salePrice.toString() ?? '0');
-    _weight = TextEditingController(text: p?.steelWeightKg?.toString() ?? '0');
+    final currentSteelWeight = p?.pieceWeightKg == null ? p?.steelWeightKg : p!.quantity * p.pieceWeightKg!;
+    _weight = TextEditingController(text: currentSteelWeight?.toStringAsFixed(3) ?? '0');
     _diameter = TextEditingController(text: p?.diameterMm?.toString() ?? '12');
     _length = TextEditingController(text: p?.lengthM?.toString() ?? '12');
     _pieceWeight = TextEditingController(text: p?.pieceWeightKg?.toString() ?? '');
+    _unit = TextEditingController(text: p?.unit ?? 'وحدة');
     _weightUnit = 'kg';
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight]) {
+    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight, _unit]) {
       c.dispose();
     }
     super.dispose();
@@ -128,7 +132,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     if (!_formKey.currentState!.validate()) return;
     final p = widget.product;
     var finalQuantity = _number(_quantity);
-    var finalUnit = p?.unit ?? 'وحدة';
+    var finalUnit = _unit.text.trim().isEmpty ? 'وحدة' : _unit.text.trim();
     var finalCategory = _category;
     if (_isSteel) {
       final enteredWeight = _number(_weight);
@@ -159,7 +163,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       finalUnit = _usesDiameter ? 'قضيب' : 'قطعة';
       if (!finalQuantity.isFinite || finalQuantity <= 0) return;
     } else {
-      finalUnit = p?.unit ?? 'وحدة';
+      finalUnit = _unit.text.trim().isEmpty ? 'وحدة' : _unit.text.trim();
     }
     Navigator.of(context).pop(_Product(
       id: p?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
@@ -246,6 +250,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                 const Text('سيحوّل البرنامج الوزن تلقائياً إلى عدد قضبان/قطع ويضيف الناتج إلى المخزون.',
                   style: TextStyle(fontSize: 11, color: BatiProTheme.green)),
               ] else ...[
+                _field(_unit, 'وحدة القياس (كيس، حبة، طن، م³...)'),
                 _field(_quantity, 'الكمية', numeric: true),
               ],
               Row(children: [
@@ -347,10 +352,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   String _money(double n) => '${n.toStringAsFixed(n == n.roundToDouble() ? 0 : 2)} دج';
-  Future<void> _edit([_Product? old]) async {
+  Future<void> _edit([_Product? old, String? initialCategory]) async {
     final result = await showDialog<_Product>(
       context: context,
-      builder: (_) => _ProductEditorDialog(product: old),
+      builder: (_) => _ProductEditorDialog(product: old, initialCategory: initialCategory),
     );
     if (result == null || !mounted) return;
     setState(() {
@@ -381,7 +386,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text('BatiPro DZ',style:TextStyle(color:BatiProTheme.muted,fontSize:11)),
           SizedBox(height:4),Text('المنتجات والمخزون',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-        ])),FilledButton.icon(onPressed:()=>_edit(),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
+        ])),FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : _inventoryGroups[_activeGroup]!.first),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:c.maxWidth<600?2:3,childAspectRatio:c.maxWidth<600?1.8:2.2,crossAxisSpacing:10,mainAxisSpacing:10,children:[
           _metric('عدد المنتجات','${_products.length}',Icons.inventory_2_outlined),
@@ -410,9 +415,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
               child:Container(
                 padding:const EdgeInsets.all(12),
                 decoration:BoxDecoration(
-                  color:selected?BatiProTheme.gold.withValues(alpha:.18):BatiProTheme.surface,
+                  color:selected?BatiProTheme.gold.withValues(alpha:.18):Colors.white,
                   borderRadius:BorderRadius.circular(14),
-                  border:Border.all(color:selected?BatiProTheme.gold:BatiProTheme.border),
+                  border:Border.all(color:selected?BatiProTheme.gold:BatiProTheme.line),
                 ),
                 child:Row(children:[
                   Icon(_groupIcons[entry.key],color:BatiProTheme.gold,size:23),
