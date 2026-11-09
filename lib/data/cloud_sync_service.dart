@@ -28,6 +28,44 @@ class CloudSyncService {
     return Map<String, dynamic>.from(decoded);
   }
 
+
+  static Future<List<Map<String, dynamic>>> pendingConflicts() async {
+    final storage = await AppStorage.getInstance();
+    final metadata = _readMetadata(storage);
+    return (metadata['conflicts'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  }
+
+  static Future<void> resolveConflict(String key, {required bool keepLocal}) async {
+    final storage = await AppStorage.getInstance();
+    final metadata = _readMetadata(storage);
+    final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
+    final conflicts = (metadata['conflicts'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    final index = conflicts.indexWhere((item) => item['key'] == key);
+    if (index < 0) throw StateError('لم يتم العثور على التعارض المطلوب.');
+    final conflict = conflicts.removeAt(index);
+    final serverValue = conflict['server_value'] as String?;
+    final serverDeleted = conflict['server_deleted'] == true;
+    documents[key] = {
+      'revision': (conflict['server_revision'] as num).toInt(),
+      'value': serverValue,
+      'deleted': serverDeleted,
+    };
+    if (!keepLocal) {
+      if (serverDeleted) {
+        await storage.remove(key);
+      } else if (serverValue != null) {
+        await storage.setString(key, serverValue);
+      }
+    }
+    await storage.setString(_metadataKey, jsonEncode({
+      'cursor': metadata['cursor'] ?? 0,
+      'documents': documents,
+      'conflicts': conflicts,
+    }));
+  }
+
   static Future<Map<String, dynamic>> synchronize() async {
     if (_isRunning) throw StateError('المزامنة جارية بالفعل.');
     _isRunning = true;
@@ -38,6 +76,9 @@ class CloudSyncService {
     final deviceId = await _deviceId();
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
+    if ((metadata['conflicts'] as List? ?? const []).isNotEmpty) {
+      throw StateError('يوجد تعارض محفوظ. اختر النسخة التي تريد الاحتفاظ بها أولاً.');
+    }
     var cursor = (metadata['cursor'] as num?)?.toInt() ?? 0;
 
     var pulled = 0;
@@ -55,9 +96,15 @@ class CloudSyncService {
         final localValue = storage.getString(key);
         final compatible = localValue == null || (!deleted && localValue == value);
         if (!compatible) {
-          await storage.setString(_metadataKey,
-              jsonEncode({'cursor': cursor, 'documents': documents}));
-          throw StateError('هذا الجهاز يحتوي بيانات محلية مختلفة عن الخادم في "$key". لم ندمجها تلقائياً حتى لا تضيع أي نسخة.');
+          metadata['conflicts'] = [{
+            'key': key, 'server_revision': remote['revision'],
+            'server_value': value, 'server_deleted': deleted,
+            'local_value': localValue, 'local_deleted': localValue == null,
+          }];
+          await storage.setString(_metadataKey, jsonEncode({
+            'cursor': cursor, 'documents': documents, 'conflicts': metadata['conflicts'],
+          }));
+          throw StateError('تعارض في بيانات "$key". اختر النسخة المحلية أو نسخة الخادم.');
         }
         if (deleted) {
           await storage.remove(key);
@@ -127,8 +174,28 @@ class CloudSyncService {
       await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
       final conflicts = (response['conflicts'] as List? ?? const []);
       if (conflicts.isNotEmpty) {
-        final first = Map<String, dynamic>.from(conflicts.first as Map);
-        throw StateError('تعارض في البيانات "${first['key']}". احتفظنا بنسختك المحلية ولم نستبدلها.');
+        final pending = (metadata['conflicts'] as List? ?? const [])
+            .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        for (final raw in conflicts) {
+          final conflict = Map<String, dynamic>.from(raw as Map);
+          final key = conflict['key'] as String;
+          final localValue = storage.getString(key);
+          if (!pending.any((item) => item['key'] == key)) {
+            pending.add({
+              'key': key,
+              'server_revision': conflict['server_revision'],
+              'server_value': conflict['server_value'],
+              'server_deleted': conflict['server_deleted'] == true,
+              'local_value': localValue,
+              'local_deleted': localValue == null,
+            });
+          }
+        }
+        metadata['conflicts'] = pending;
+        await storage.setString(_metadataKey, jsonEncode({
+          'cursor': cursor, 'documents': documents, 'conflicts': pending,
+        }));
+        throw StateError('توجد بيانات متعارضة. اختر النسخة التي تريد الاحتفاظ بها.');
       }
     }
 
@@ -151,8 +218,20 @@ class CloudSyncService {
         final localMatchesBase = known['deleted'] == true
             ? localValue == null : localValue == known['value'];
         if (change['device_id'] != deviceId && !localMatchesBase) {
-          await storage.setString(_metadataKey, jsonEncode({'cursor': processedCursor, 'documents': documents}));
-          throw StateError('تعارض أثناء استقبال "$key". احتفظنا بنسختك المحلية ولم نتجاوز هذا التغيير.');
+          final pending = (metadata['conflicts'] as List? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          if (!pending.any((item) => item['key'] == key)) {
+            pending.add({
+              'key': key, 'server_revision': revision,
+              'server_value': value, 'server_deleted': deleted,
+              'local_value': localValue, 'local_deleted': localValue == null,
+            });
+          }
+          metadata['conflicts'] = pending;
+          await storage.setString(_metadataKey, jsonEncode({
+            'cursor': processedCursor, 'documents': documents, 'conflicts': pending,
+          }));
+          throw StateError('تعارض أثناء استقبال "$key". اختر النسخة التي تريد الاحتفاظ بها.');
         }
         if (deleted) {
           await storage.remove(key);
