@@ -279,3 +279,85 @@ def test_read_only_role_and_membership_revocation_are_enforced(monkeypatch):
         revoked = client.get("/products", headers=headers)
         assert revoked.status_code == 401
 
+def test_initial_snapshot_import_is_idempotent_and_does_not_replay_stock(monkeypatch):
+    monkeypatch.setenv("BATIPRO_TOKEN_SECRET", "test-token-secret-that-is-at-least-32-bytes")
+    monkeypatch.setenv("BATIPRO_BOOTSTRAP_SECRET", "bootstrap-secret-for-integration-tests")
+    email = f"snapshot-{uuid4().hex}@example.test"
+
+    with TestClient(app) as client:
+        registered = client.post("/auth/register", json={
+            "email": email,
+            "password": "Strong-test-password-123",
+            "display_name": "Snapshot Owner",
+            "organization_name": "Snapshot Store",
+            "bootstrap_secret": "bootstrap-secret-for-integration-tests",
+        })
+        assert registered.status_code == 201, registered.text
+        headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+
+        payload = {
+            "device_id": "windows-device-test-0001",
+            "idempotency_key": "initial-snapshot-v1",
+            "products": [{
+                "local_id": "local-product-1",
+                "name": "إسمنت الاختبار",
+                "category": "الإسمنت",
+                "unit": "كيس",
+                "quantity": 8,
+                "minimum_stock": 2,
+                "purchase_price": 100,
+                "sale_price": 130,
+            }],
+            "suppliers": [{"local_id": "local-supplier-1", "name": "مورد الاختبار"}],
+            "customers": [{"local_id": "local-customer-1", "name": "زبون الاختبار"}],
+            "purchases": [{
+                "local_id": "legacy-purchase-1",
+                "product_local_id": "local-product-1",
+                "product": "إسمنت الاختبار",
+                "supplier": "مورد الاختبار",
+                "quantity": 10,
+                "input_quantity": 10,
+                "input_unit": "كيس",
+                "stock_unit": "كيس",
+                "unit_price": 100,
+                "total": 1000,
+                "paid": 500,
+                "date": "2026-11-01T10:00:00",
+            }],
+            "sales": [{
+                "local_id": "legacy-sale-1",
+                "client": "زبون الاختبار",
+                "total": 260,
+                "paid": 130,
+                "date": "2026-11-02T10:00:00",
+                "items": [{
+                    "productId": "local-product-1",
+                    "name": "إسمنت الاختبار",
+                    "unit": "كيس",
+                    "quantity": 2,
+                    "price": 130,
+                    "total": 260,
+                }],
+            }],
+        }
+
+        first = client.post("/sync/initial-snapshot", headers=headers, json=payload)
+        assert first.status_code == 200, first.text
+        assert first.json()["counts"] == {
+            "products": 1, "suppliers": 1, "customers": 1,
+            "purchases": 1, "sales": 1, "opening_stock_items": 1,
+        }
+
+        repeated = client.post("/sync/initial-snapshot", headers=headers, json=payload)
+        assert repeated.status_code == 200, repeated.text
+        assert repeated.json()["already_imported"] is True
+
+        stock = client.get("/stock", headers=headers)
+        assert stock.status_code == 200
+        assert len(stock.json()) == 1
+        assert stock.json()[0]["quantity"] == "8.000"
+
+        changed = {**payload, "products": [{**payload["products"][0], "quantity": 9}]}
+        conflict = client.post("/sync/initial-snapshot", headers=headers, json=changed)
+        assert conflict.status_code == 409
+
