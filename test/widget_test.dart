@@ -13,7 +13,8 @@ void main() {
     expect(find.text('مبيعات اليوم'), findsOneWidget);
   });
   testWidgets('Inventory shows the four requested groups and rebar sizes', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    await AppStorage.initialize(inMemory: true);
+    await AppStorage.clearAll();
     await tester.pumpWidget(const BatiProApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('المخزون'));
