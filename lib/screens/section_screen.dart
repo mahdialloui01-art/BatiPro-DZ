@@ -96,7 +96,7 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   String _resolveKind(String title) {
-    if (title.contains('المشتريات')) return 'purchases';
+    if (title.contains('المشتريات') || title.contains('الشراء من المورد') || title.contains('شراء')) return 'purchases';
     if (title.contains('الزبائن')) return 'customers';
     if (title.contains('الموردون')) return 'suppliers';
     if (title.contains('المستودعات')) return 'warehouses';
