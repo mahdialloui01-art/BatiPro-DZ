@@ -42,7 +42,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
       home: Directionality(
         textDirection: TextDirection.rtl,
-        child: InventoryScreen(),
+        child: Scaffold(
+          body: InventoryScreen(),
+        ),
       ),
     ));
     await tester.pump();
