@@ -15,7 +15,7 @@
 
 1. انسخ `.env.example` إلى `.env`.
 2. غيّر كلمة مرور PostgreSQL ومفتاح توقيع الرموز ومفتاح تأسيس أول حساب إلى قيم عشوائية قوية. لا ترفع ملف `.env` إلى Git ولا تشارك هذه المفاتيح.
-3. شغّل Docker Compose:
+3. شغّل Docker Compose. حاوية API تطبّق جميع ملفات SQL بالترتيب قبل تشغيل الخدمة، وتوقف التشغيل إذا فشل أي ترحيل:
 
 ```bash
 docker compose up -d --build
@@ -26,6 +26,22 @@ docker compose up -d --build
    - `http://localhost:8000/health/ready`
 5. افتح `http://localhost:8000/docs` على جهاز الخادم، واستعمل `POST /auth/register` لإنشاء المؤسسة والحساب الأول. يجب إرسال قيمة `BATIPRO_BOOTSTRAP_SECRET` الموجودة في ملف الخادم السري. هذا المفتاح للتأسيس الأول فقط، ولا يُدخل في تطبيق Windows.
 6. في BatiPro DZ على Windows افتح **الإعدادات ← الاتصال بخادم PostgreSQL**، أدخل عنوان API ثم البريد وكلمة المرور اللذين أنشأتهما.
+
+### نسخ قاعدة PostgreSQL احتياطياً واسترجاعها
+
+احتفظ بنسخة خارج خادم الاستضافة، ولا تعتمد على Docker volume وحده. لإنشاء dump من مجلد المشروع:
+
+```bash
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > batipro-postgres.dump
+```
+
+لاسترجاع النسخة إلى قاعدة فارغة أو بعد إيقاف API:
+
+```bash
+cat batipro-postgres.dump | docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists'
+```
+
+اختبر الاسترجاع دورياً على قاعدة منفصلة قبل اعتباره خطة تعافٍ صالحة.
 
 > **تنبيه أمني:** لا تعرّض منفذ API العام عبر HTTP غير المشفّر. عند الاتصال عبر الإنترنت استعمل HTTPS خلف reverse proxy مع شهادة TLS وجدار ناري ونسخ احتياطي دوري لقاعدة البيانات. ملف Compose يفتح المنفذ 8000 للشبكة المضيفة فقط؛ إعداد TLS والنشر العام مسؤولية بيئة الاستضافة.
 
