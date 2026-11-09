@@ -604,6 +604,13 @@ async def import_initial_snapshot(body: InitialSnapshot, user=Depends(_writer)):
     pool = _pool()
     async with pool.connection() as connection:
         async with connection.transaction():
+            prior_device = await (await connection.execute(
+                """SELECT device_id FROM sync_requests
+                   WHERE organization_id=%s AND idempotency_key='initial-snapshot-v1'
+                     AND result_json IS NOT NULL LIMIT 1""",
+                (org_id,))).fetchone()
+            if prior_device is not None and prior_device[0] != body.device_id:
+                raise HTTPException(status_code=409,detail="This organization already received its initial import from another device")
             inserted = await (await connection.execute(
                 """INSERT INTO sync_requests (organization_id,device_id,idempotency_key,payload_hash)
                    VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,device_id,idempotency_key)
