@@ -920,13 +920,15 @@ async def push_sync_changes(body: SyncPushRequest, user=Depends(_writer)):
 async def sync_snapshot(user=Depends(_current_user)):
     """Return the latest server state for a new device, without replaying old events."""
     async with _pool().connection() as connection:
-        rows = await (await connection.execute(
-            """SELECT document_key,document_value,revision,is_deleted,last_event_id
-               FROM sync_documents WHERE organization_id=%s ORDER BY document_key""",
-            (user["organization_id"],))).fetchall()
-        latest = await (await connection.execute(
-            "SELECT COALESCE(MAX(event_id),0) FROM sync_events WHERE organization_id=%s",
-            (user["organization_id"],))).fetchone()
+        async with connection.transaction():
+            await connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            rows = await (await connection.execute(
+                """SELECT document_key,document_value,revision,is_deleted,last_event_id
+                   FROM sync_documents WHERE organization_id=%s ORDER BY document_key""",
+                (user["organization_id"],))).fetchall()
+            latest = await (await connection.execute(
+                "SELECT COALESCE(MAX(event_id),0) FROM sync_events WHERE organization_id=%s",
+                (user["organization_id"],))).fetchone()
     return {
         "documents": [{
             "key": row[0], "value": row[1], "revision": row[2],
