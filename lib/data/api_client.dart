@@ -227,6 +227,13 @@ class ApiClient {
     return _decode(response);
   }
 
+
+  Future<Map<String, dynamic>> syncSnapshot() async {
+    final response = await http.get(_uri('/sync/snapshot'), headers: _headers)
+        .timeout(const Duration(seconds: 45));
+    return _decode(response);
+  }
+
   Future<Map<String, dynamic>> pullSyncChanges({
     required String deviceId,
     required int after,
