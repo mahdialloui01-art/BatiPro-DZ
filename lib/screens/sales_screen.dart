@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../data/app_storage.dart';
 import '../app/app_theme.dart';
 
 class _SaleProduct {
@@ -49,7 +49,7 @@ class _SalesScreenState extends State<SalesScreen> {
   @override void initState(){super.initState();_load();}
   @override void dispose(){search.dispose();super.dispose();}
   Future<void> _load() async {
-    final prefs=await SharedPreferences.getInstance();
+    final prefs=await AppStorage.getInstance();
     try{
       final s=prefs.getString(stockKey),v=prefs.getString(salesKey);
       if(s!=null)products=(jsonDecode(s) as List).map((e)=>_SaleProduct.fromJson(Map<String,dynamic>.from(e as Map))).toList();
@@ -59,9 +59,11 @@ class _SalesScreenState extends State<SalesScreen> {
     if(mounted)setState(()=>loading=false);
   }
   Future<void> _persist() async {
-    final prefs=await SharedPreferences.getInstance();
-    await prefs.setString(stockKey,jsonEncode(products.map((e)=>e.toJson()).toList()));
-    await prefs.setString(salesKey,jsonEncode(invoices.map((e)=>e.toJson()).toList()));
+    final prefs=await AppStorage.getInstance();
+    await AppStorage.setStrings({
+      stockKey: jsonEncode(products.map((e)=>e.toJson()).toList()),
+      salesKey: jsonEncode(invoices.map((e)=>e.toJson()).toList()),
+    });
   }
   void _toast(String s){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));}
   String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' دج';
@@ -86,7 +88,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _registerCustomer(String name) async {
     if (name.trim().isEmpty || name == 'زبون نقدي') return;
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await AppStorage.getInstance();
     final raw = prefs.getString('batipro_customers_v1');
     final customers = raw == null ? <Map<String,dynamic>>[] :
       (jsonDecode(raw) as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
