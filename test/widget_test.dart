@@ -28,4 +28,17 @@ void main() {
     expect(find.text('حديد تسليح T8'), findsOneWidget);
     expect(find.text('حديد تسليح T32'), findsOneWidget);
   });
+
+  testWidgets('Dashboard sales chart switches between day, week, month and year', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const BatiProApp());
+    await tester.pumpAndSettle();
+
+    for (final period in ['اليوم', 'الأسبوع', 'الشهر', 'العام']) {
+      await tester.ensureVisible(find.text(period));
+      await tester.tap(find.text(period));
+      await tester.pumpAndSettle();
+      expect(find.text('مجموع المبيعات • $period'), findsOneWidget);
+    }
+  });
 }

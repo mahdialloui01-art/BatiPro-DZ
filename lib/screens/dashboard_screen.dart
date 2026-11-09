@@ -78,15 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..sort((a, b) => _number(a, 'quantity').compareTo(_number(b, 'quantity')));
     sales.sort((a, b) => _dateOf(b).compareTo(_dateOf(a)));
 
-    const labels = ['اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت', 'أحد'];
-    final weekly = <({String label, double amount})>[];
-    for (var offset = 6; offset >= 0; offset--) {
-      final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: offset));
-      final amount = sales.where((row) => sameDay(_dateOf(row), day))
-          .fold<double>(0, (sum, row) => sum + _number(row, 'total'));
-      weekly.add((label: labels[day.weekday - 1], amount: amount));
-    }
-
     if (!mounted) return;
     setState(() {
       _todaySales = todaySales;
@@ -154,7 +145,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(flex: 2, child: _AlertsPanel(items: _lowStock)),
                     ])
                   else ...[
-                    _SalesPanel(values: _weeklySales),
+                    _SalesPanel(sales: _sales),
                     const SizedBox(height: 14),
                     _AlertsPanel(items: _lowStock),
                   ],
