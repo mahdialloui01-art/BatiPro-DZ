@@ -248,7 +248,7 @@ class _SectionScreenState extends State<SectionScreen> {
         stock.insert(0, {
           'id': DateTime.now().microsecondsSinceEpoch.toString(),
           'name': cleanName,
-          'category': source?['inventoryCategory'] ?? (isSteel ? source['steelType'] : source?['category'] ?? 'مواد البناء'),
+          'category': source?['inventoryCategory'] ?? (isSteel ? source?['steelType'] : source?['category'] ?? 'مواد البناء'),
           'unit': unit,
           'quantity': quantityDelta,
           'minimum': 0,

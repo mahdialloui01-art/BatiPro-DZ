@@ -84,7 +84,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     super.initState();
     final p = widget.product;
     _name = TextEditingController(text: p?.name ?? '');
-    _category = p?.category ?? (initialCategory != null && _categories.contains(initialCategory) ? initialCategory! : 'مواد البناء');
+    _category = p?.category ?? (widget.initialCategory != null && _categories.contains(widget.initialCategory) ? widget.initialCategory! : 'مواد البناء');
     _quantity = TextEditingController(text: p?.quantity.toString() ?? '0');
     _minimum = TextEditingController(text: p?.minimum.toString() ?? '5');
     _purchasePrice = TextEditingController(text: p?.purchasePrice.toString() ?? '0');
