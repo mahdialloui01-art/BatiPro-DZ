@@ -97,3 +97,91 @@ def test_registration_requires_bootstrap_secret(monkeypatch):
             "bootstrap_secret": "wrong-secret",
         })
     assert response.status_code == 403
+
+def test_purchase_and_sale_post_atomically_update_stock(monkeypatch):
+    monkeypatch.setenv("BATIPRO_TOKEN_SECRET", "test-token-secret-that-is-at-least-32-bytes")
+    monkeypatch.setenv("BATIPRO_BOOTSTRAP_SECRET", "bootstrap-secret-for-integration-tests")
+    email = f"trade-{uuid4().hex}@example.test"
+
+    with TestClient(app) as client:
+        registered = client.post("/auth/register", json={
+            "email": email,
+            "password": "Strong-test-password-123",
+            "display_name": "Trade Owner",
+            "organization_name": "Trade Store",
+            "bootstrap_secret": "bootstrap-secret-for-integration-tests",
+        })
+        assert registered.status_code == 201, registered.text
+        headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+        warehouse = client.get("/warehouses", headers=headers).json()[0]
+
+        supplier = client.post("/suppliers", headers=headers, json={"name": "مورد الاختبار"})
+        assert supplier.status_code == 201, supplier.text
+        customer = client.post("/customers", headers=headers, json={"name": "زبون الاختبار"})
+        assert customer.status_code == 201, customer.text
+
+        product = client.post("/products", headers=headers, json={
+            "name": "إسمنت CEM II 42.5",
+            "category": "الإسمنت",
+            "base_unit": "كيس",
+            "tracking_mode": "quantity",
+            "purchase_price": "500",
+            "sale_price": "600",
+        })
+        assert product.status_code == 201, product.text
+        product_id = product.json()["id"]
+
+        purchase = client.post("/purchases", headers=headers, json={
+            "warehouse_id": warehouse["id"],
+            "supplier_id": supplier.json()["id"],
+            "invoice_number": "PUR-" + uuid4().hex[:12],
+            "invoice_date": "2026-11-09",
+            "lines": [{
+                "product_id": product_id,
+                "entered_quantity": "10",
+                "entered_unit": "كيس",
+                "base_quantity": "10",
+                "unit_price": "500",
+                "line_total": "5000",
+            }],
+            "discount": "0",
+            "paid": "1000",
+        })
+        assert purchase.status_code == 201, purchase.text
+        assert purchase.json()["due"] == "4000"
+
+        sale = client.post("/sales", headers=headers, json={
+            "warehouse_id": warehouse["id"],
+            "customer_id": customer.json()["id"],
+            "invoice_number": "SAL-" + uuid4().hex[:12],
+            "lines": [{
+                "product_id": product_id,
+                "quantity": "4",
+                "unit": "كيس",
+                "unit_price": "600",
+                "line_total": "2400",
+            }],
+            "discount": "0",
+            "paid": "600",
+        })
+        assert sale.status_code == 201, sale.text
+        assert sale.json()["due"] == "1800"
+
+        stock = client.get("/stock", headers=headers)
+        matching = [row for row in stock.json() if row["product_id"] == product_id]
+        assert len(matching) == 1
+        assert matching[0]["quantity"] == "6.000"
+
+        oversell = client.post("/sales", headers=headers, json={
+            "warehouse_id": warehouse["id"],
+            "invoice_number": "SAL-" + uuid4().hex[:12],
+            "lines": [{
+                "product_id": product_id,
+                "quantity": "7",
+                "unit": "كيس",
+                "unit_price": "600",
+                "line_total": "4200",
+            }],
+        })
+        assert oversell.status_code == 409
+
