@@ -1,7 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 import base64
 import hashlib
@@ -402,6 +402,10 @@ async def create_customer(body: ContactCreate, user=Depends(_current_user)):
 
 @app.post("/purchases", status_code=status.HTTP_201_CREATED, tags=["purchases"])
 async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
+    for line in body.lines:
+        expected_line_total = (line.entered_quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if line.line_total != expected_line_total:
+            raise HTTPException(status_code=422, detail="Purchase line total does not match quantity × unit price")
     subtotal = sum((line.line_total for line in body.lines), Decimal("0"))
     total = subtotal - body.discount
     if total < 0 or body.paid > total:
@@ -426,26 +430,52 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
             invoice_id = (await invoice_result.fetchone())[0]
             for index, line in enumerate(body.lines):
                 product = await (await connection.execute(
-                    """SELECT base_unit FROM products
-                       WHERE id=%s AND organization_id=%s AND is_active FOR UPDATE""",
+                    """SELECT base_unit,tracking_mode,piece_weight_kg,rebar_diameter_mm,bar_length_m
+                       FROM products WHERE id=%s AND organization_id=%s AND is_active FOR UPDATE""",
                     (line.product_id,user["organization_id"]))).fetchone()
                 if product is None:
                     raise HTTPException(status_code=404, detail="A purchase product was not found")
+                base_unit, tracking_mode, piece_weight, diameter, length = product
+                entered_unit = line.entered_unit.strip().lower()
+                measured_weight = None
+                if tracking_mode == "piece" and entered_unit in ("kg", "ton"):
+                    measured_weight = line.entered_quantity * (Decimal("1000") if entered_unit == "ton" else Decimal("1"))
+                    if piece_weight is None and diameter is not None and length is not None:
+                        piece_weight = (Decimal("3.141592653589793") / Decimal("4") *
+                                        (Decimal(diameter) / Decimal("1000")) ** 2 *
+                                        Decimal(length) * Decimal("7850"))
+                    if piece_weight is None or piece_weight <= 0:
+                        raise HTTPException(status_code=422, detail="Steel product has no valid piece weight")
+                    expected_base = (measured_weight / Decimal(piece_weight)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                elif entered_unit == str(base_unit).lower():
+                    expected_base = line.entered_quantity
+                elif entered_unit == "ton" and str(base_unit).lower() == "kg":
+                    expected_base = line.entered_quantity * Decimal("1000")
+                elif entered_unit == "kg" and str(base_unit).lower() == "ton":
+                    expected_base = line.entered_quantity / Decimal("1000")
+                else:
+                    raise HTTPException(status_code=422, detail="Purchase unit is incompatible with product base unit")
+                expected_base = expected_base.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                if abs(line.base_quantity - expected_base) > Decimal("0.001"):
+                    raise HTTPException(status_code=422, detail="Base quantity does not match the unit conversion")
+                if line.measured_weight_kg is not None and measured_weight is not None:
+                    if abs(line.measured_weight_kg - measured_weight) > Decimal("0.001"):
+                        raise HTTPException(status_code=422, detail="Measured weight does not match purchase quantity")
                 await connection.execute(
                     """INSERT INTO purchase_lines
                        (organization_id,purchase_invoice_id,product_id,entered_quantity,entered_unit,
                         base_quantity,unit_price,line_total,measured_weight_kg)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (user["organization_id"],invoice_id,line.product_id,line.entered_quantity,
-                     line.entered_unit,line.base_quantity,line.unit_price,line.line_total,
-                     line.measured_weight_kg))
+                     line.entered_unit,expected_base,line.unit_price,line.line_total,
+                     measured_weight if measured_weight is not None else line.measured_weight_kg))
                 await connection.execute(
                     """INSERT INTO stock_movements
                        (organization_id,warehouse_id,product_id,movement_type,quantity_delta,
                         unit,source_type,source_id,idempotency_key)
                        VALUES (%s,%s,%s,'purchase',%s,%s,'purchase',%s,%s)""",
                     (user["organization_id"],body.warehouse_id,line.product_id,line.base_quantity,
-                     product[0],invoice_id,"purchase:"+str(invoice_id)+":"+str(index)))
+                     base_unit,invoice_id,"purchase:"+str(invoice_id)+":"+str(index)))
             if body.paid > 0:
                 await connection.execute(
                     """INSERT INTO payments
@@ -464,6 +494,10 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_current_user)):
 
 @app.post("/sales", status_code=status.HTTP_201_CREATED, tags=["sales"])
 async def create_sale(body: SaleCreate, user=Depends(_current_user)):
+    for line in body.lines:
+        expected_line_total = (line.quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if line.line_total != expected_line_total:
+            raise HTTPException(status_code=422, detail="Sales line total does not match quantity × unit price")
     subtotal = sum((line.line_total for line in body.lines), Decimal("0"))
     total = subtotal - body.discount
     if total < 0 or body.paid > total:
@@ -496,6 +530,8 @@ async def create_sale(body: SaleCreate, user=Depends(_current_user)):
                     (line.product_id,user["organization_id"]))).fetchone()
                 if product is None:
                     raise HTTPException(status_code=404, detail="A sales product was not found")
+                if line.unit.strip().lower() != str(product[0]).lower():
+                    raise HTTPException(status_code=422, detail="Sales unit must match product base unit")
                 current = await (await connection.execute(
                     """SELECT COALESCE(SUM(quantity_delta),0) FROM stock_movements
                        WHERE organization_id=%s AND warehouse_id=%s AND product_id=%s""",
