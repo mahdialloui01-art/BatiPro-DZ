@@ -150,8 +150,8 @@ class AppStorage {
         throw const FormatException('توجد مفاتيح فارغة أو مكررة في النسخة الاحتياطية.');
       }
       entries.add({
-        'key': key,
-        'value': raw['value'] as String,
+        'data_key': key,
+        'data_value': raw['value'] as String,
         'updated_at': raw['updated_at'] is String
             ? raw['updated_at'] as String
             : DateTime.now().toIso8601String(),
@@ -170,7 +170,7 @@ class AppStorage {
     });
     _cache
       ..clear()
-      ..addEntries(entries.map((entry) => MapEntry(entry['key']!, entry['value']!)));
+      ..addEntries(entries.map((entry) => MapEntry(entry['data_key']!, entry['data_value']!)));
     return entries.length;
   }
 
