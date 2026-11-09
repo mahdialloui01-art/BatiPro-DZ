@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../data/app_storage.dart';
+import '../data/api_client.dart';
 import '../app/app_theme.dart';
 
 class _FieldSpec {
@@ -991,6 +992,11 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   final _phone = TextEditingController();
   final _address = TextEditingController();
   final _currency = TextEditingController(text: 'DZD - الدينار الجزائري');
+  final _serverUrl = TextEditingController();
+  final _apiEmail = TextEditingController();
+  final _apiPassword = TextEditingController();
+  bool _apiBusy = false;
+  String _apiStatus = 'غير مربوط بالخادم';
   bool _loading = true;
 
   @override
@@ -1005,6 +1011,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _phone.dispose();
     _address.dispose();
     _currency.dispose();
+    _serverUrl.dispose();
+    _apiEmail.dispose();
+    _apiPassword.dispose();
     super.dispose();
   }
 
@@ -1014,6 +1023,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
     _currency.text = prefs.getString('batipro_currency') ?? 'DZD - الدينار الجزائري';
+    await ApiClient.instance.initialize();
+    _serverUrl.text = ApiClient.instance.baseUrl ?? '';
+    if (ApiClient.instance.isAuthenticated) {
+      try {
+        final account = await ApiClient.instance.me();
+        _apiStatus = 'متصل: ${account['organization_name'] ?? account['email'] ?? 'الحساب'}';
+      } catch (_) {
+        _apiStatus = 'انتهت صلاحية الدخول، أعد تسجيل الدخول';
+      }
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -1024,6 +1043,40 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     await prefs.setString('batipro_shop_address', _address.text.trim());
     await prefs.setString('batipro_currency', _currency.text.trim());
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ إعدادات المحل.')));
+  }
+
+  Future<void> _saveServer() async {
+    try {
+      await ApiClient.instance.setServerUrl(_serverUrl.text);
+      if (mounted) setState(() => _apiStatus = 'تم حفظ عنوان الخادم. سجّل الدخول للمتابعة.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ عنوان API بأمان.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _loginApi() async {
+    if (_apiBusy) return;
+    setState(() => _apiBusy = true);
+    try {
+      await ApiClient.instance.login(email: _apiEmail.text, password: _apiPassword.text);
+      final account = await ApiClient.instance.me();
+      if (mounted) setState(() => _apiStatus =
+          'متصل: ${account['organization_name'] ?? account['email'] ?? 'الحساب'}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم الاتصال بقاعدة PostgreSQL عبر API بنجاح.')));
+    } catch (error) {
+      if (mounted) setState(() => _apiStatus = 'فشل الاتصال: $error');
+    } finally {
+      if (mounted) setState(() => _apiBusy = false);
+    }
+  }
+
+  Future<void> _logoutApi() async {
+    await ApiClient.instance.logout();
+    if (mounted) setState(() => _apiStatus = 'تم تسجيل الخروج من الخادم');
   }
 
   Widget _field(TextEditingController controller, String label, {IconData? icon}) =>
@@ -1048,11 +1101,54 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: _save,
           icon: const Icon(Icons.save_outlined),
-          label: const Text('حفظ الإعدادات'),
+          label: const Text('حفظ إعدادات المحل'),
+        )),
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 12),
+        const Text('الاتصال بخادم PostgreSQL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 5),
+        const Text('أدخل عنوان API الذي يستضيفه مسؤول النظام. لا تضع كلمة مرور قاعدة البيانات هنا.',
+            style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+        const SizedBox(height: 12),
+        _field(_serverUrl, 'رابط الخادم (مثال: https://api.example.com)', icon: Icons.dns_outlined),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: _apiBusy ? null : _saveServer,
+          icon: const Icon(Icons.link),
+          label: const Text('حفظ عنوان الخادم'),
         )),
         const SizedBox(height: 12),
-        const Text('الإعدادات تُحفظ محلياً على الجهاز. النسخ الاحتياطي والمستخدمون والصلاحيات ستُضاف لاحقاً.',
+        _field(_apiEmail, 'البريد الإلكتروني', icon: Icons.email_outlined),
+        _field(_apiPassword, 'كلمة مرور حساب BatiPro', icon: Icons.lock_outline),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: _apiBusy ? null : _loginApi,
+          icon: _apiBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.cloud_sync_outlined),
+          label: const Text('الاتصال وتسجيل الدخول'),
+        )),
+        if (ApiClient.instance.isAuthenticated)
+          SizedBox(width: double.infinity, child: TextButton.icon(
+            onPressed: _apiBusy ? null : _logoutApi,
+            icon: const Icon(Icons.logout),
+            label: const Text('تسجيل الخروج من الخادم'),
+          )),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            Icon(ApiClient.instance.isAuthenticated ? Icons.cloud_done : Icons.cloud_off,
+                color: ApiClient.instance.isAuthenticated ? BatiProTheme.green : BatiProTheme.muted, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_apiStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink))),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+
       ]),
     ));
   }
