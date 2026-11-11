@@ -1007,13 +1007,22 @@ class _EntryEditorState extends State<_EntryEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.initial == null ? 'إضافة إلى ${widget.title}' : 'تعديل السجل'),
+    title: Row(children: [
+      Container(width: 42, height: 42, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(13)), child: Icon(widget.isPurchase ? Icons.local_shipping_outlined : Icons.edit_note_rounded, color: BatiProTheme.ink)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(widget.initial == null ? 'إضافة إلى ${widget.title}' : 'تعديل السجل'),
+        const SizedBox(height: 3),
+        Text(widget.isPurchase ? 'أدخل بيانات المورد والكمية والتكلفة' : 'أدخل المعلومات المطلوبة بدقة', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400)),
+      ])),
+    ]),
     content: SizedBox(
-      width: 430,
+      width: 480,
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 14), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: Row(children: [const Icon(Icons.info_outline_rounded, color: BatiProTheme.blue, size: 18), const SizedBox(width: 9), Expanded(child: Text(widget.isPurchase ? 'الأسعار تُسجّل بالسنتيم الجزائري، وسيظهر ملخص التكلفة قبل الحفظ.' : 'تأكد من صحة البيانات قبل اعتماد السجل.', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, height: 1.4)))])),
             for (final field in widget.fields)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
