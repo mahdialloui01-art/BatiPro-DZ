@@ -213,15 +213,17 @@ class _SalesScreenState extends State<SalesScreen> {
         'mode': draft.mode, 'date': now.toIso8601String(),
       });
     }
-    if (returns.length > 500) returns.removeRange(500, returns.length);
     if (movements.length > 500) movements.removeRange(500, movements.length);
-    setState(() { products = updatedProducts; invoices[ii] = updated; });
+    final savedInvoices = List<_SaleInvoice>.of(invoices);
+    savedInvoices[ii] = updated;
     await AppStorage.setStrings({
-      stockKey: jsonEncode(products.map((e) => e.toJson()).toList()),
-      salesKey: jsonEncode(invoices.map((e) => e.toJson()).toList()),
+      stockKey: jsonEncode(updatedProducts.map((e) => e.toJson()).toList()),
+      salesKey: jsonEncode(savedInvoices.map((e) => e.toJson()).toList()),
       'batipro_sales_returns_v1': jsonEncode(returns),
       'batipro_stock_movements_v1': jsonEncode(movements),
     });
+    if (!mounted) return;
+    setState(() { products = updatedProducts; invoices = savedInvoices; });
     _toast('تم تسجيل الإرجاع وإضافة الكمية للمخزون. القيمة: ${_money(refund)}.');
   }
 
