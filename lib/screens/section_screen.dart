@@ -47,8 +47,8 @@ class _SectionScreenState extends State<SectionScreen> {
           _FieldSpec('diameterMm', 'مقاس حديد التسليح', number: true, optional: true, options: ['8', '10', '12', '14', '16', '20', '25', '32']),
           _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
           _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
-          _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
-          _FieldSpec('paid', 'المبلغ المدفوع (دج)', number: true),
+          _FieldSpec('unitPrice', 'سعر وحدة الشراء (سنتيم)', number: true),
+          _FieldSpec('paid', 'المبلغ المدفوع (سنتيم)', number: true),
           _FieldSpec('reference', 'رقم وصل الشراء'),
         ];
       case 'customers':
@@ -76,7 +76,7 @@ class _SectionScreenState extends State<SectionScreen> {
         return const [
           _FieldSpec('label', 'بيان المصروف'),
           _FieldSpec('category', 'التصنيف'),
-          _FieldSpec('amount', 'المبلغ (دج)', number: true),
+          _FieldSpec('amount', 'المبلغ (سنتيم)', number: true),
           _FieldSpec('note', 'ملاحظات'),
         ];
       default:
@@ -161,8 +161,7 @@ class _SectionScreenState extends State<SectionScreen> {
     await prefs.setString(_storageKey, jsonEncode(_items));
   }
 
-  String _money(double value) =>
-      '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => '${value.round()} سنتيم';
 
   double _sum(String key) => _items.fold<double>(
       0, (sum, item) => sum + ((item[key] as num?)?.toDouble() ?? 0));
@@ -535,12 +534,12 @@ class _SectionScreenState extends State<SectionScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(due)}'),
+          decoration: InputDecoration(labelText: 'المبلغ (سنتيم)', helperText: 'المتبقي: ${_money(due)}'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton(onPressed: () {
-            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'))?.roundToDouble();
             if (value == null || !value.isFinite || value <= 0 || value > due) {
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً صحيحاً لا يتجاوز المتبقي.')));
               return;
@@ -784,8 +783,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       double.tryParse((_controllers[key]?.text ?? '0').trim().replaceAll(',', '.')) ?? 0;
 
   String _previewMoney(double value) {
-    final digits = value == value.roundToDouble() ? 0 : 2;
-    return '${value.toStringAsFixed(digits)} دج';
+    return '${value.round()} سنتيم';
   }
 
   Widget _purchasePreview() {
@@ -793,7 +791,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     final unitPrice = _numberValue('unitPrice');
     final paid = _numberValue('paid');
     final unit = (_controllers['inputUnit']?.text ?? 'kg').trim().toLowerCase();
-    final total = enteredQuantity * unitPrice;
+    final total = (enteredQuantity * unitPrice).roundToDouble();
     final remaining = (total - paid).clamp(0, double.infinity).toDouble();
     final steelType = (_controllers['steelType']?.text ?? 'مواد عادية').trim();
     final isSteel = steelType != 'مواد عادية';
@@ -864,7 +862,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     final result = <String, dynamic>{};
     for (final field in widget.fields) {
       final value = _controllers[field.key]!.text.trim();
-      result[field.key] = field.number ? (double.tryParse(value.replaceAll(',', '.')) ?? 0) : value;
+      result[field.key] = field.number ? ((double.tryParse(value.replaceAll(',', '.')) ?? 0).roundToDouble()) : value;
     }
     if (widget.isPurchase) {
       final enteredQuantity = (result['quantity'] as num).toDouble();
@@ -879,7 +877,7 @@ class _EntryEditorState extends State<_EntryEditor> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
         return;
       }
-      final total = enteredQuantity * price;
+      final total = (enteredQuantity * price).roundToDouble();
       result['inputQuantity'] = enteredQuantity;
       result['inputUnit'] = unit;
       result['total'] = total;
@@ -936,7 +934,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: field.key == 'unitPrice' && widget.isPurchase
-                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (سنتيم)'
                               : field.label,
                         ),
                         items: field.options.map((option) => DropdownMenuItem<String>(
@@ -954,7 +952,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
                         decoration: InputDecoration(
                           labelText: field.key == 'unitPrice' && widget.isPurchase
-                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (سنتيم)'
                               : field.label,
                           helperText: field.key == 'diameterMm'
                               ? 'أدخل الرقم فقط: 8 لـ T8، 10 لـ T10، 14 لـ T14، 16 لـ T16، أو أي قطر آخر'
@@ -997,7 +995,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _address = TextEditingController();
-  final _currency = TextEditingController(text: 'DZD - الدينار الجزائري');
+  final _currency = TextEditingController(text: 'DZD - السنتيم الجزائري');
   final _serverUrl = TextEditingController();
   final _apiEmail = TextEditingController();
   final _apiPassword = TextEditingController();
@@ -1032,7 +1030,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
-    _currency.text = prefs.getString('batipro_currency') ?? 'DZD - الدينار الجزائري';
+    _currency.text = prefs.getString('batipro_currency') ?? 'DZD - السنتيم الجزائري';
+    if (_currency.text.contains('الدينار الجزائري')) _currency.text = 'DZD - السنتيم الجزائري';
     await ApiClient.instance.initialize();
     _serverUrl.text = ApiClient.instance.baseUrl ?? '';
     if (ApiClient.instance.isAuthenticated) {
