@@ -12,6 +12,7 @@ class _SaleProduct {
   String get name=>raw['name'] as String;
   String get unit=>raw['unit'] as String;
   double get price=>(raw['salePrice'] as num).toDouble();
+  int get palletCount=>(raw['palletCount'] as num?)?.toInt() ?? 0;
   factory _SaleProduct.fromJson(Map<String,dynamic> j) {
     final data=Map<String,dynamic>.from(j);
     return _SaleProduct(data,(data['quantity'] as num).toDouble());
@@ -20,10 +21,12 @@ class _SaleProduct {
 }
 class _SaleLine {
   final _SaleProduct product;
-  final double quantity,price;
-  const _SaleLine(this.product,this.quantity,this.price);
+  /// Quantity selected by the seller (piece or pallet).
+  final double quantity,price,baseQuantity;
+  final String saleUnit;
+  const _SaleLine(this.product,this.quantity,this.price,this.baseQuantity,this.saleUnit);
   double get total=>quantity*price;
-  Map<String,dynamic> toJson()=>{'productId':product.id,'name':product.name,'unit':product.unit,'quantity':quantity,'price':price,'total':total};
+  Map<String,dynamic> toJson()=>{'productId':product.id,'name':product.name,'unit':product.unit,'quantity':baseQuantity,'displayQuantity':quantity,'displayUnit':saleUnit,'price':price,'total':total};
 }
 class _SaleInvoice {
   final String id,client,method;
@@ -159,7 +162,7 @@ class _SalesScreenState extends State<SalesScreen> {
       title:Text('فاتورة '+i.id),
       content:SizedBox(width:440,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
         Text('الزبون: '+i.client),Text('التاريخ: '+_date(i.date)),const Divider(height:22),
-        for(final e in i.items)Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[Expanded(child:Text(e['name'].toString()+' • '+e['quantity'].toString()+' '+e['unit'].toString(),style:const TextStyle(fontSize:12))),Text(_money((e['total'] as num).toDouble()))])),
+        for(final e in i.items)Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[Expanded(child:Text(e['name'].toString()+' • '+(e['displayQuantity']??e['quantity']).toString()+' '+(e['displayUnit']??e['unit']).toString(),style:const TextStyle(fontSize:12))),Text(_money((e['total'] as num).toDouble()))])),
         const Divider(height:22),_detail('الإجمالي',_money(i.total)),_detail('المدفوع',_money(i.paid)),_detail('المتبقي',_money(i.due),i.due>0?BatiProTheme.red:BatiProTheme.green),_detail('طريقة الدفع',i.method),_detail('الحالة',i.status),
       ]))),
       actions:[
@@ -211,18 +214,21 @@ class _SaleEditorState extends State<_SaleEditor>{
   final cart=<_SaleLine>[];
   String? selected;
   String method='نقداً';
+  String saleUnit='حبة';
   double quantity=1,price=0;
   @override void initState(){super.initState();if(widget.products.isNotEmpty){selected=widget.products.first.id;price=widget.products.first.price;}}
   @override void dispose(){client.dispose();paid.dispose();super.dispose();}
   _SaleProduct? get _product {for(final p in widget.products){if(p.id==selected)return p;}return null;}
   double get _total=>cart.fold<double>(0,(s,e)=>s+e.total);
   double get _paid=>double.tryParse(paid.text.trim().replaceAll(',','.'))??0;
+  double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
   String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' دج';
   void _add(){
     final p=_product;if(p==null||quantity<=0||price<0)return;
-    final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.quantity);
-    if(old+quantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('المتوفر من '+p.name+': '+p.quantity.toString()+' '+p.unit+' فقط.')));return;}
-    setState((){cart.add(_SaleLine(p,quantity,price));if(method=='نقداً')paid.text=_total.toStringAsFixed(2);});
+    final baseQuantity=quantity*_factor(p);
+    final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.baseQuantity);
+    if(old+baseQuantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('المتوفر من '+p.name+': '+p.quantity.toString()+' '+p.unit+' فقط، والكمية المطلوبة تعادل '+baseQuantity.toString()+' '+p.unit+'.')));return;}
+    setState((){cart.add(_SaleLine(p,quantity,price,baseQuantity,saleUnit=='باليطة'?'باليطة':p.unit));if(method=='نقداً')paid.text=_total.toStringAsFixed(2);});
   }
   void _save(){
     if(!form.currentState!.validate())return;
@@ -236,14 +242,15 @@ class _SaleEditorState extends State<_SaleEditor>{
     return AlertDialog(title:const Text('إنشاء فاتورة بيع'),content:SizedBox(width:520,child:Form(key:form,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
       TextFormField(controller:client,decoration:const InputDecoration(labelText:'اسم الزبون (اختياري)',prefixIcon:Icon(Icons.person_outline))),
       const SizedBox(height:12),const Text('المنتجات',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
-      DropdownButtonFormField<String>(value:selected,isExpanded:true,decoration:const InputDecoration(labelText:'اختر المنتج'),items:widget.products.map((p)=>DropdownMenuItem(value:p.id,child:Text(p.name+' • '+(p.raw['category']??'').toString()+' — '+p.quantity.toString()+' '+p.unit,overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){if(v==null)return;final chosen=widget.products.firstWhere((item)=>item.id==v);setState((){selected=v;price=chosen.price;});}),
+      DropdownButtonFormField<String>(value:selected,isExpanded:true,decoration:const InputDecoration(labelText:'اختر المنتج'),items:widget.products.map((p)=>DropdownMenuItem(value:p.id,child:Text(p.name+' • '+(p.raw['category']??'').toString()+' — '+p.quantity.toString()+' '+p.unit,overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){if(v==null)return;final chosen=widget.products.firstWhere((item)=>item.id==v);setState((){selected=v;saleUnit='حبة';quantity=1;price=chosen.price;});}),
+      if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:const InputDecoration(labelText:'طريقة البيع'),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
       const SizedBox(height:8),Row(children:[
-        Expanded(child:TextFormField(initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الكمية'),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
-        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey(selected),initialValue:price.toString(),keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'سعر الوحدة دج'),onChanged:(v)=>price=double.tryParse(v.replaceAll(',','.'))??-1)),
+        Expanded(child:TextFormField(key:ValueKey('qty-$selected-$saleUnit'),initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:'الكمية ${saleUnit=='باليطة'?'باليطة':'حبة/وحدة'}'),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
+        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),initialValue:price.toString(),keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:saleUnit=='باليطة'?'سعر الباليطة دج':'سعر الحبة دج'),onChanged:(v)=>price=double.tryParse(v.replaceAll(',','.'))??-1)),
         const SizedBox(width:6),IconButton.filled(onPressed:_add,icon:const Icon(Icons.add),tooltip:'إضافة'),
       ]),
-      if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
-      if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+cart[i].product.unit,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState((){cart.removeAt(i);if(method=='نقداً')paid.text=_total.toStringAsFixed(2);}),icon:const Icon(Icons.close,size:17))])])),
+      if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit+(p.palletCount>0?' • يعادل ${(p.quantity/p.palletCount).toStringAsFixed(2)} باليطة':'') ,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
+      if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+cart[i].saleUnit,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState((){cart.removeAt(i);if(method=='نقداً')paid.text=_total.toStringAsFixed(2);}),icon:const Icon(Icons.close,size:17))])])),
       const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:Text('الإجمالي: '+_money(_total),style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:BatiProTheme.ink))),
       const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
       const SizedBox(height:8),TextFormField(controller:paid,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المدفوع دج'),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
