@@ -137,7 +137,7 @@ class AppStorage {
       'opening_balance', 'paid_sales', 'customer_debt', 'supplier_debt',
     };
 
-    dynamic convert(dynamic value, [String? parentKey]) {
+    dynamic convert(dynamic value) {
       if (value is Map) {
         final result = <String, dynamic>{};
         for (final entry in value.entries) {
@@ -146,7 +146,7 @@ class AppStorage {
           if (moneyFields.contains(key) && child is num) {
             result[key] = (child * 100).round();
           } else {
-            result[key] = convert(child, key);
+            result[key] = convert(child);
           }
         }
         return result;
