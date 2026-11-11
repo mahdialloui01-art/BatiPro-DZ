@@ -105,20 +105,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return SingleChildScrollView(
                 padding: EdgeInsets.all(compact ? 16 : 28),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('مرحباً بك 👋', style: TextStyle(color: BatiProTheme.muted, fontSize: 12)),
-                      SizedBox(height: 4),
-                      Text('ملخص تجارتك اليوم', style: TextStyle(color: BatiProTheme.ink, fontSize: 23, fontWeight: FontWeight.w800)),
-                    ])),
-                    Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: BatiProTheme.line)),
-                      child: const Icon(Icons.notifications_none_rounded, color: BatiProTheme.ink),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(compact ? 18 : 24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topRight, end: Alignment.bottomLeft,
+                        colors: [Color(0xFF173447), Color(0xFF31566A)],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [BoxShadow(color: BatiProTheme.ink.withValues(alpha: .12), blurRadius: 22, offset: const Offset(0, 9))],
                     ),
-                    const SizedBox(width: 9),
-                    const CircleAvatar(backgroundColor: BatiProTheme.ink, child: Text('م', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                  ]),
+                    child: Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFF63D2A5), shape: BoxShape.circle)),
+                          const SizedBox(width: 7),
+                          const Text('نظام إدارة مواد البناء', style: TextStyle(color: Color(0xFFD5E2E9), fontSize: 10, fontWeight: FontWeight.w600)),
+                        ]),
+                        const SizedBox(height: 12),
+                        const Text('مرحباً بك في BatiPro 👋', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 6),
+                        const Text('كل عمليات محلك ومخزونك في نظرة واحدة', style: TextStyle(color: Color(0xFFD5E2E9), fontSize: 11)),
+                      ])),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: compact ? 54 : 68, height: compact ? 54 : 68,
+                        decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(19)),
+                        child: Icon(Icons.foundation_rounded, color: BatiProTheme.ink, size: compact ? 29 : 36),
+                      ),
+                    ]),
+                  ),
                   const SizedBox(height: 25),
                   const SectionHeader(title: 'لوحة القيادة', subtitle: 'نظرة عامة من عملياتك المسجلة'),
                   const SizedBox(height: 17),
