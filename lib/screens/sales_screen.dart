@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../data/app_storage.dart';
 import '../data/pos_drawer_service.dart';
@@ -140,6 +141,102 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
 
+
+  Future<void> _printReturnReceipt({
+    required String returnId,
+    required _SaleInvoice invoice,
+    required DateTime date,
+    required String mode,
+    required double amount,
+    required List<Map<String, dynamic>> lines,
+  }) async {
+    if (!Platform.isWindows) {
+      _toast('طباعة وصل الإرجاع متاحة حالياً في نسخة Windows فقط.');
+      return;
+    }
+    final storage = await AppStorage.getInstance();
+    final printer = (storage.getString(PosDrawerService.printerKey) ?? '').trim();
+    if (printer.isEmpty) {
+      _toast('لم يتم تحديد طابعة الإيصالات. اختر الطابعة من إعدادات أجهزة POS ثم أعد الطباعة.');
+      return;
+    }
+    final buffer = StringBuffer()
+      ..writeln('             BATIPRO DZ')
+      ..writeln('             وصل إرجاع')
+      ..writeln('--------------------------------')
+      ..writeln('رقم الوصل: ${returnId}')
+      ..writeln('رقم الفاتورة: ${invoice.id}')
+      ..writeln('الزبون: ${invoice.client}')
+      ..writeln('التاريخ: ${_date(date)}')
+      ..writeln('--------------------------------')
+      ..writeln('السلعة')
+      ..writeln('--------------------------------');
+    for (final line in lines) {
+      buffer.writeln('${line['productName']}');
+      buffer.writeln('  ${line['quantity']} ${line['unit']}    ${_money((line['amount'] as num).toDouble())}');
+    }
+    buffer
+      ..writeln('--------------------------------')
+      ..writeln('قيمة الإرجاع: ${_money(amount)}')
+      ..writeln('طريقة التسوية: ${mode == 'cash' ? 'رد نقدي' : 'تخفيض الدين'}')
+      ..writeln('الفاتورة الأصلية: ${invoice.id}')
+      ..writeln('--------------------------------')
+      ..writeln('       شكراً لتعاملكم معنا')
+      ..writeln('\n\n\n');
+    final encodedText = base64Encode(utf8.encode(buffer.toString()));
+    final encodedPrinter = base64Encode(utf8.encode(printer));
+    final script = r"""
+$text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('TEXT64'));
+$name = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('PRINTER64'));
+$text | Out-Printer -Name $name
+""".replaceAll('TEXT64', encodedText).replaceAll('PRINTER64', encodedPrinter);
+    try {
+      final result = await Process.run('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-Command', script,
+      ]);
+      if (result.exitCode != 0) {
+        _toast('تعذرت طباعة وصل الإرجاع: ${result.stderr.toString().trim()}');
+      } else {
+        _toast('تم إرسال وصل الإرجاع إلى الطابعة.');
+      }
+    } catch (e) {
+      _toast('تعذرت الطباعة. تحقق من اتصال الطابعة وإعداداتها.');
+    }
+  }
+
+  Future<void> _confirmPrintReturn({
+    required String returnId,
+    required _SaleInvoice invoice,
+    required DateTime date,
+    required String mode,
+    required double amount,
+    required List<Map<String, dynamic>> lines,
+  }) async {
+    if (!mounted) return;
+    final shouldPrint = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تم تسجيل الإرجاع'),
+        content: Text('تمت إضافة الكمية للمخزون وتسجيل مبلغ ${_money(amount)}. هل تريد طباعة وصل الإرجاع الآن؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('لاحقاً')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.print),
+            label: const Text('طباعة الوصل'),
+          ),
+        ],
+      ),
+    );
+    if (shouldPrint == true) {
+      await _printReturnReceipt(
+        returnId: returnId, invoice: invoice, date: date,
+        mode: mode, amount: amount, lines: lines,
+      );
+    }
+  }
+
   Future<void> _returnSale(_SaleInvoice invoice) async {
     final prefs = await AppStorage.getInstance();
     List<Map<String, dynamic>> returns = [];
@@ -224,7 +321,10 @@ class _SalesScreenState extends State<SalesScreen> {
     });
     if (!mounted) return;
     setState(() { products = updatedProducts; invoices = savedInvoices; });
-    _toast('تم تسجيل الإرجاع وإضافة الكمية للمخزون. القيمة: ${_money(refund)}.');
+    await _confirmPrintReturn(
+      returnId: returnId, invoice: invoice, date: now,
+      mode: draft.mode, amount: refund, lines: lines,
+    );
   }
 
   Future<void> _registerCustomer(String name) async {
