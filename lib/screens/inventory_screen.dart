@@ -182,8 +182,8 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       unit: finalUnit,
       quantity: finalQuantity,
       minimum: _isSteel ? _number(_minimum) : _number(_minimum),
-      purchasePrice: _number(_purchasePrice),
-      salePrice: _number(_salePrice),
+      purchasePrice: _number(_purchasePrice).roundToDouble(),
+      salePrice: _number(_salePrice).roundToDouble(),
       steelWeightKg: _isSteel ? _number(_weight) * (_weightUnit == 'ton' ? 1000 : 1) : null,
       pieceWeightKg: _isSteel ? (_usesDiameter
           ? (3.141592653589793 / 4) * (_number(_diameter) / 1000) * (_number(_diameter) / 1000) * _number(_length) * 7850
@@ -336,9 +336,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
     if (_products.isEmpty && raw == null) {
       _products = [
-        const _Product(id:'seed-1',name:'إسمنت عادي',category:'الإسمنت',unit:'كيس',quantity:240,minimum:30,purchasePrice:550,salePrice:650),
-        const _Product(id:'seed-2',name:'حديد تسليح 12 مم',category:'الحديد',unit:'قضيب',quantity:580,minimum:80,purchasePrice:850,salePrice:980),
-        const _Product(id:'seed-3',name:'آجر أحمر',category:'الآجر',unit:'حبة',quantity:3500,minimum:500,purchasePrice:18,salePrice:23),
+        const _Product(id:'seed-1',name:'إسمنت عادي',category:'الإسمنت',unit:'كيس',quantity:240,minimum:30,purchasePrice:55000,salePrice:65000),
+        const _Product(id:'seed-2',name:'حديد تسليح 12 مم',category:'الحديد',unit:'قضيب',quantity:580,minimum:80,purchasePrice:85000,salePrice:98000),
+        const _Product(id:'seed-3',name:'آجر أحمر',category:'الآجر',unit:'حبة',quantity:3500,minimum:500,purchasePrice:1800,salePrice:2300),
       ];
       await _save();
     }
@@ -363,7 +363,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }).toList();
   }
 
-  String _money(double n) => '${n.toStringAsFixed(n == n.roundToDouble() ? 0 : 2)} دج';
+  String _money(double n) => '${n.round()} سنتيم';
   Future<void> _edit([_Product? old, String? initialCategory]) async {
     final result = await showDialog<_Product>(
       context: context,
