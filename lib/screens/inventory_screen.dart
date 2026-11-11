@@ -286,6 +286,98 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   }
 }
 
+
+class _StockCountDialog extends StatefulWidget {
+  final _Product product;
+  const _StockCountDialog({required this.product});
+
+  @override
+  State<_StockCountDialog> createState() => _StockCountDialogState();
+}
+
+class _StockCountDialogState extends State<_StockCountDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _quantity;
+  final TextEditingController _reason = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = TextEditingController(text: widget.product.quantity.toString());
+  }
+
+  @override
+  void dispose() {
+    _quantity.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('جرد وتسوية المخزون'),
+    content: SizedBox(
+      width: 390,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text('المادة: ${widget.product.name}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 8),
+            Text('الرصيد الحالي: ${widget.product.quantity} ${widget.product.unit}'),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _quantity,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'الكمية الفعلية بعد العد',
+                suffixText: widget.product.unit,
+              ),
+              validator: (value) {
+                final parsed = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
+                if (parsed == null || !parsed.isFinite || parsed < 0) {
+                  return 'أدخل كمية صحيحة ولا تكون سالبة';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _reason,
+              decoration: const InputDecoration(
+                labelText: 'سبب التسوية',
+                hintText: 'مثلاً: جرد دوري، تلف، كسر أو فرق في العد',
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'اكتب سبب التسوية'
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton.icon(
+        onPressed: () {
+          if (!_formKey.currentState!.validate()) return;
+          Navigator.pop(context, {
+            'quantity': double.parse(_quantity.text.trim().replaceAll(',', '.')),
+            'reason': _reason.text.trim(),
+          });
+        },
+        icon: const Icon(Icons.fact_check_outlined),
+        label: const Text('تأكيد الجرد'),
+      ),
+    ],
+  );
+}
+
 class _InventoryScreenState extends State<InventoryScreen> {
   static const _storageKey = 'batipro_inventory_v1';
   final _search = TextEditingController();
@@ -382,6 +474,137 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
 
+
+  Future<void> _adjustStock(_Product product) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _StockCountDialog(product: product),
+    );
+    if (result == null || !mounted) return;
+    final counted = (result['quantity'] as num).toDouble();
+    final delta = counted - product.quantity;
+    if (delta.abs() < 0.0000001) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الجرد مطابق للرصيد الحالي، لا توجد تسوية.')),
+      );
+      return;
+    }
+
+    final prefs = await AppStorage.getInstance();
+    final raw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String, dynamic>>[];
+    if (raw != null) {
+      try {
+        movements.addAll((jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر قراءة سجل حركات المخزون؛ لم يتم تغيير الرصيد.')),
+        );
+        return;
+      }
+    }
+    final now = DateTime.now();
+    movements.insert(0, {
+      'id': now.microsecondsSinceEpoch.toString(),
+      'date': now.toIso8601String(),
+      'type': 'stock_count',
+      'productId': product.id,
+      'productName': product.name,
+      'previousQuantity': product.quantity,
+      'countedQuantity': counted,
+      'quantityDelta': delta,
+      'unit': product.unit,
+      'reason': result['reason'],
+    });
+    if (movements.length > 500) movements.removeRange(500, movements.length);
+
+    final updated = _Product(
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      unit: product.unit,
+      quantity: counted,
+      minimum: product.minimum,
+      purchasePrice: product.purchasePrice,
+      salePrice: product.salePrice,
+      steelWeightKg: product.steelWeightKg,
+      pieceWeightKg: product.pieceWeightKg,
+      diameterMm: product.diameterMm,
+      lengthM: product.lengthM,
+      palletCount: product.palletCount,
+    );
+    final nextProducts = _products.map((item) => item.id == product.id ? updated : item).toList();
+    await AppStorage.setStrings({
+      _storageKey: jsonEncode(nextProducts.map((item) => item.toJson()).toList()),
+      'batipro_stock_movements_v1': jsonEncode(movements),
+    });
+    if (mounted) {
+      setState(() => _products = nextProducts);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تسجيل فرق الجرد: ${delta > 0 ? '+' : ''}${delta.toStringAsFixed(3)} ${product.unit}.')),
+      );
+    }
+  }
+
+  Future<void> _showStockMovements() async {
+    final prefs = await AppStorage.getInstance();
+    final raw = prefs.getString('batipro_stock_movements_v1');
+    List<Map<String, dynamic>> movements = [];
+    if (raw != null) {
+      try {
+        movements = (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('سجل تسويات الجرد'),
+        content: SizedBox(
+          width: 520,
+          height: 420,
+          child: movements.isEmpty
+              ? const Center(child: Text('لا توجد تسويات جرد مسجلة بعد.'))
+              : ListView.separated(
+                  itemCount: movements.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, index) {
+                    final item = movements[index];
+                    final delta = (item['quantityDelta'] as num?)?.toDouble() ?? 0;
+                    final date = (item['date'] ?? '').toString();
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        delta >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                        color: delta >= 0 ? BatiProTheme.green : BatiProTheme.red,
+                      ),
+                      title: Text((item['productName'] ?? 'مادة').toString()),
+                      subtitle: Text(
+                        '${item['reason'] ?? ''} • ${date.length >= 16 ? date.substring(0, 16).replaceFirst('T', ' ') : date}\n'
+                        'قبل: ${item['previousQuantity']} • بعد: ${item['countedQuantity']}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      trailing: Text(
+                        '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(3)} ${item['unit'] ?? ''}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: delta >= 0 ? BatiProTheme.green : BatiProTheme.red,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _delete(_Product p) async {
     final yes = await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
       title:const Text('حذف المنتج؟'),content:Text('سيتم حذف ${p.name} من القائمة.'),
@@ -398,7 +621,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
         Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text('BatiPro DZ',style:TextStyle(color:BatiProTheme.muted,fontSize:11)),
           SizedBox(height:4),Text('المنتجات والمخزون',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-        ])),FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
+        ])),Wrap(spacing:7,children:[
+          OutlinedButton.icon(onPressed:_showStockMovements,icon:const Icon(Icons.history),label:const Text('سجل الجرد')),
+          FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),icon:const Icon(Icons.add),label:const Text('إضافة')),
+        ])]),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:c.maxWidth<600?2:3,childAspectRatio:c.maxWidth<600?1.8:2.2,crossAxisSpacing:10,mainAxisSpacing:10,children:[
           _metric('عدد المنتجات','${_products.length}',Icons.inventory_2_outlined),
@@ -477,8 +703,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
             Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}${(p.palletCount ?? 0) > 0 ? ' | الباليطة: ${p.palletCount} حبة' : ''}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
             const SizedBox(height:5),Text('المتوفر: ${p.quantity} ${p.unit} • حد التنبيه: ${p.minimum}',style:TextStyle(fontSize:11,color:p.quantity<=p.minimum?BatiProTheme.red:BatiProTheme.green,fontWeight:FontWeight.w700)),
           ])),
-          PopupMenuButton<String>(onSelected:(v){if(v=='edit')_edit(p);if(v=='delete')_delete(p);},itemBuilder:(_)=>const [
-            PopupMenuItem(value:'edit',child:Text('تعديل')),PopupMenuItem(value:'delete',child:Text('حذف')),
+          PopupMenuButton<String>(onSelected:(v){if(v=='edit')_edit(p);if(v=='count')_adjustStock(p);if(v=='delete')_delete(p);},itemBuilder:(_)=>const [
+            PopupMenuItem(value:'count',child:Text('جرد / تسوية الكمية')),
+            PopupMenuItem(value:'edit',child:Text('تعديل')),
+            PopupMenuItem(value:'delete',child:Text('حذف')),
           ]),
         ])))),
         const SizedBox(height:20),
