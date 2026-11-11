@@ -14,6 +14,7 @@ class AppStorage {
   static Database? _database;
   static final Map<String, String> _cache = <String, String>{};
   static const String _migrationKey = '__legacy_shared_preferences_migrated_v1';
+  static const String _centimeMigrationKey = '__batipro_currency_centime_v1';
 
   static Future<void> initialize({bool inMemory = false}) async {
     if (_database != null) return;
@@ -61,6 +62,7 @@ class AppStorage {
 
     if (!inMemory) {
       await _migrateLegacyPreferences(db);
+      await _migrateCurrencyValuesToCentimes(db);
     }
   }
 
@@ -102,6 +104,87 @@ class AppStorage {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+    });
+
+    final migrated = await db.query('app_data');
+    _cache
+      ..clear()
+      ..addEntries(migrated.map((row) => MapEntry(
+        row['data_key'] as String,
+        row['data_value'] as String,
+      )));
+  }
+
+
+  /// One-time conversion of legacy DZD amounts to integer Algerian centimes.
+  /// Only explicitly named monetary fields are converted; quantities and weights stay unchanged.
+  static Future<void> _migrateCurrencyValuesToCentimes(Database db) async {
+    final marker = await db.query(
+      'app_data',
+      columns: const ['data_key'],
+      where: 'data_key = ?',
+      whereArgs: const [_centimeMigrationKey],
+      limit: 1,
+    );
+    if (marker.isNotEmpty) return;
+
+    const moneyFields = <String>{
+      'purchasePrice', 'salePrice', 'stockUnitPrice', 'unitPrice', 'price',
+      'total', 'subtotal', 'discount', 'paid', 'amount', 'balance',
+      'openingBalance', 'paidSales', 'purchases', 'expenses', 'sales',
+      'customerDebt', 'supplierDebt', 'cost',
+      'purchase_price', 'sale_price', 'unit_price', 'line_total',
+      'opening_balance', 'paid_sales', 'customer_debt', 'supplier_debt',
+    };
+
+    dynamic convert(dynamic value, [String? parentKey]) {
+      if (value is Map) {
+        final result = <String, dynamic>{};
+        for (final entry in value.entries) {
+          final key = entry.key.toString();
+          final child = entry.value;
+          if (moneyFields.contains(key) && child is num) {
+            result[key] = (child * 100).round();
+          } else {
+            result[key] = convert(child, key);
+          }
+        }
+        return result;
+      }
+      if (value is List) return value.map((item) => convert(item)).toList();
+      return value;
+    }
+
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'app_data',
+        columns: const ['data_key', 'data_value'],
+        where: "data_key LIKE 'batipro_%'",
+      );
+      final now = DateTime.now().toIso8601String();
+      for (final row in rows) {
+        final key = row['data_key'] as String;
+        final raw = row['data_value'] as String;
+        try {
+          final decoded = jsonDecode(raw);
+          final converted = jsonEncode(convert(decoded));
+          if (converted != raw) {
+            await txn.update(
+              'app_data',
+              {'data_value': converted, 'updated_at': now},
+              where: 'data_key = ?',
+              whereArgs: [key],
+            );
+          }
+        } on FormatException {
+          // Plain-text settings (such as the currency label) are not amounts.
+        }
+      }
+      await txn.insert('app_data', {
+        'data_key': _centimeMigrationKey,
+        'data_value': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
 
     final migrated = await db.query('app_data');
@@ -171,6 +254,7 @@ class AppStorage {
     _cache
       ..clear()
       ..addEntries(entries.map((entry) => MapEntry(entry['data_key']!, entry['data_value']!)));
+    await _migrateCurrencyValuesToCentimes(db);
     return entries.length;
   }
 
