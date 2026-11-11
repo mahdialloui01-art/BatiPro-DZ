@@ -7,7 +7,8 @@ class _Product {
   final String id, name, category, unit;
   final double quantity, minimum, purchasePrice, salePrice;
   final double? steelWeightKg, pieceWeightKg, diameterMm, lengthM;
-  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice, this.steelWeightKg, this.pieceWeightKg, this.diameterMm, this.lengthM});
+  final int? palletCount;
+  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice, this.steelWeightKg, this.pieceWeightKg, this.diameterMm, this.lengthM, this.palletCount});
   factory _Product.fromJson(Map<String, dynamic> j) => _Product(
     id: j['id'] as String, name: j['name'] as String, category: j['category'] as String,
     unit: j['unit'] as String, quantity: (j['quantity'] as num).toDouble(),
@@ -17,8 +18,9 @@ class _Product {
     pieceWeightKg: (j['pieceWeightKg'] as num?)?.toDouble(),
     diameterMm: (j['diameterMm'] as num?)?.toDouble(),
     lengthM: (j['lengthM'] as num?)?.toDouble(),
+    palletCount: (j['palletCount'] as num?)?.toInt(),
   );
-  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice,'steelWeightKg':steelWeightKg,'pieceWeightKg':pieceWeightKg,'diameterMm':diameterMm,'lengthM':lengthM};
+  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice,'steelWeightKg':steelWeightKg,'pieceWeightKg':pieceWeightKg,'diameterMm':diameterMm,'lengthM':lengthM,'palletCount':palletCount};
 }
 
 class InventoryScreen extends StatefulWidget {
@@ -73,11 +75,13 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   late final TextEditingController _length;
   late final TextEditingController _pieceWeight;
   late final TextEditingController _unit;
+  late final TextEditingController _palletCount;
   late String _category;
   late String _weightUnit;
 
   bool get _isSteel => _category.contains('حديد') || _category.contains('سلك') || _category.contains('شبك') || _category.contains('أنبوب') || _category.contains('عوارض') || _category.contains('زوايا') || _category.contains('مقاطع') || _category.contains('صفائح') || _category.contains('فلات') || _category.contains('قضبان ملولبة') || _category.contains('مسامير');
   bool get _usesDiameter => _category.startsWith('حديد تسليح') || _category == 'الحديد تسليح' || _category == 'حديد دائري مصمت';
+  bool get _isBrick => _category.contains('آجر');
 
   @override
   void initState() {
@@ -95,12 +99,13 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     _length = TextEditingController(text: p?.lengthM?.toString() ?? '12');
     _pieceWeight = TextEditingController(text: p?.pieceWeightKg?.toString() ?? '');
     _unit = TextEditingController(text: p?.unit ?? 'وحدة');
+    _palletCount = TextEditingController(text: p?.palletCount?.toString() ?? '0');
     _weightUnit = 'kg';
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight, _unit]) {
+    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight, _unit, _palletCount]) {
       c.dispose();
     }
     super.dispose();
@@ -165,6 +170,11 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     } else {
       finalUnit = _unit.text.trim().isEmpty ? 'وحدة' : _unit.text.trim();
     }
+    final palletValue = _number(_palletCount);
+    if (_isBrick && palletValue > 0 && palletValue != palletValue.roundToDouble()) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عدد الحبات في الباليطة يجب أن يكون عدداً صحيحاً.')));
+      return;
+    }
     Navigator.of(context).pop(_Product(
       id: p?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
       name: _name.text.trim(),
@@ -180,6 +190,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
           : _number(_pieceWeight)) : null,
       diameterMm: _isSteel && _usesDiameter ? _number(_diameter) : null,
       lengthM: _isSteel ? _number(_length) : null,
+      palletCount: _isBrick && palletValue > 0 ? palletValue.round() : null,
     ));
   }
 
@@ -252,6 +263,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
               ] else ...[
                 _field(_unit, 'وحدة القياس (كيس، حبة، طن، م³...)'),
                 _field(_quantity, 'الكمية', numeric: true),
+                if (_isBrick) _field(_palletCount, 'عدد الحبات في الباليطة', numeric: true, helper: 'اتركه 0 إذا لا تريد البيع بالباليطة لهذا النوع.'),
               ],
               Row(children: [
                 Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
@@ -462,7 +474,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.14),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.inventory_2_outlined,color:BatiProTheme.ink)),
           const SizedBox(width:11),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text(p.name,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-            Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
+            Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}${(p.palletCount ?? 0) > 0 ? ' | الباليطة: ${p.palletCount} حبة' : ''}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
             const SizedBox(height:5),Text('المتوفر: ${p.quantity} ${p.unit} • حد التنبيه: ${p.minimum}',style:TextStyle(fontSize:11,color:p.quantity<=p.minimum?BatiProTheme.red:BatiProTheme.green,fontWeight:FontWeight.w700)),
           ])),
           PopupMenuButton<String>(onSelected:(v){if(v=='edit')_edit(p);if(v=='delete')_delete(p);},itemBuilder:(_)=>const [
