@@ -11,7 +11,7 @@ class _SaleProduct {
   String get id=>raw['id'] as String;
   String get name=>raw['name'] as String;
   String get unit=>raw['unit'] as String;
-  double get price=>(raw['salePrice'] as num).toDouble();
+  double get price=>(raw['salePrice'] as num).toDouble().roundToDouble();
   int get palletCount=>(raw['palletCount'] as num?)?.toInt() ?? 0;
   factory _SaleProduct.fromJson(Map<String,dynamic> j) {
     final data=Map<String,dynamic>.from(j);
@@ -25,7 +25,7 @@ class _SaleLine {
   final double quantity,price,baseQuantity;
   final String saleUnit;
   const _SaleLine(this.product,this.quantity,this.price,this.baseQuantity,this.saleUnit);
-  double get total=>quantity*price;
+  double get total=>(quantity*price).roundToDouble();
   Map<String,dynamic> toJson()=>{'productId':product.id,'name':product.name,'unit':product.unit,'quantity':baseQuantity,'displayQuantity':quantity,'displayUnit':saleUnit,'price':price,'total':total};
 }
 class _SaleInvoice {
@@ -69,7 +69,7 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
   void _toast(String s){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));}
-  String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' دج';
+  String _money(double n)=>'${n.round()} سنتيم';
   String _date(DateTime d)=>d.year.toString()+'/'+d.month.toString().padLeft(2,'0')+'/'+d.day.toString().padLeft(2,'0');
   List<_SaleInvoice> get _visible {final q=search.text.trim().toLowerCase();return invoices.where((e)=>e.client.toLowerCase().contains(q)||e.id.toLowerCase().contains(q)).toList();}
 
@@ -122,13 +122,13 @@ class _SalesScreenState extends State<SalesScreen> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: TextInputType.number,
           decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(invoice.due)}'),
         ),
         actions: [
           TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton(onPressed: (){
-            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'))?.roundToDouble();
             if (value == null || !value.isFinite || value <= 0 || value > invoice.due) {
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً أكبر من صفر ولا يتجاوز المتبقي.')));
               return;
@@ -219,10 +219,10 @@ class _SaleEditorState extends State<_SaleEditor>{
   @override void initState(){super.initState();if(widget.products.isNotEmpty){selected=widget.products.first.id;price=widget.products.first.price;}}
   @override void dispose(){client.dispose();paid.dispose();super.dispose();}
   _SaleProduct? get _product {for(final p in widget.products){if(p.id==selected)return p;}return null;}
-  double get _total=>cart.fold<double>(0,(s,e)=>s+e.total);
-  double get _paid=>double.tryParse(paid.text.trim().replaceAll(',','.'))??0;
+  double get _total=>cart.fold<double>(0,(s,e)=>s+e.total).roundToDouble();
+  double get _paid=>(double.tryParse(paid.text.trim().replaceAll(',','.'))??0).roundToDouble();
   double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
-  String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' دج';
+  String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' سنتيم';
   void _add(){
     final p=_product;if(p==null||quantity<=0||price<0)return;
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
@@ -247,14 +247,14 @@ class _SaleEditorState extends State<_SaleEditor>{
       if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:const InputDecoration(labelText:'طريقة البيع'),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
       const SizedBox(height:8),Row(children:[
         Expanded(child:TextFormField(key:ValueKey('qty-$selected-$saleUnit'),initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:'الكمية ${saleUnit=='باليطة'?'باليطة':'حبة/وحدة'}'),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
-        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),initialValue:price.toString(),keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:saleUnit=='باليطة'?'سعر الباليطة دج':'سعر الحبة دج'),onChanged:(v)=>price=double.tryParse(v.replaceAll(',','.'))??-1)),
+        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),initialValue:price.toString(),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:saleUnit=='باليطة'?'سعر الباليطة بالسنتيم':'سعر الحبة بالسنتيم'),onChanged:(v)=>price=(double.tryParse(v.replaceAll(',','.'))??-1).roundToDouble())),
         const SizedBox(width:6),IconButton.filled(onPressed:_add,icon:const Icon(Icons.add),tooltip:'إضافة'),
       ]),
       if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit+(p.palletCount>0?' • يعادل ${(p.quantity/p.palletCount).toStringAsFixed(2)} باليطة':'') ,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
       if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+cart[i].saleUnit,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState((){cart.removeAt(i);if(method=='نقداً')paid.text=_total.toStringAsFixed(2);}),icon:const Icon(Icons.close,size:17))])])),
       const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:Text('الإجمالي: '+_money(_total),style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:BatiProTheme.ink))),
       const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
-      const SizedBox(height:8),TextFormField(controller:paid,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ المدفوع دج'),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
+      const SizedBox(height:8),TextFormField(controller:paid,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'المبلغ المدفوع بالسنتيم'),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
       const SizedBox(height:5),Text('المتبقي: '+_money((_total-_paid).clamp(0,double.infinity).toDouble()),style:const TextStyle(fontSize:12,color:BatiProTheme.red,fontWeight:FontWeight.bold)),
     ])))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('إلغاء')),FilledButton.icon(onPressed:_save,icon:const Icon(Icons.save_outlined),label:const Text('حفظ الفاتورة'))]);
   }
