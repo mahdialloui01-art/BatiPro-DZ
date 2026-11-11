@@ -406,7 +406,26 @@ $text | Out-Printer -Name $name
     return SafeArea(child:loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c){
       final compact=c.maxWidth<650;
       return SingleChildScrollView(padding:EdgeInsets.all(compact?16:28),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('BatiPro DZ',style:TextStyle(fontSize:11,color:BatiProTheme.muted)),SizedBox(height:4),Text('المبيعات والفواتير',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink))])),FilledButton.icon(onPressed:_newSale,icon:const Icon(Icons.add_shopping_cart),label:Text(compact?'بيع جديد':'فاتورة جديدة'))]),
+        Container(
+          width:double.infinity,
+          padding:EdgeInsets.all(compact?16:21),
+          decoration:BoxDecoration(
+            gradient:const LinearGradient(begin:Alignment.topRight,end:Alignment.bottomLeft,colors:[Color(0xFF173447),Color(0xFF31566A)]),
+            borderRadius:BorderRadius.circular(20),
+          ),
+          child:Row(children:[
+            Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold,borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.point_of_sale_rounded,color:BatiProTheme.ink)),
+            const SizedBox(width:11),
+            const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('نقطة البيع وإدارة الفواتير',style:TextStyle(color:Color(0xFFD5E2E9),fontSize:10)),
+              SizedBox(height:3),Text('المبيعات والفواتير',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:Colors.white)),
+            ])),
+            FilledButton.icon(
+              style:FilledButton.styleFrom(backgroundColor:BatiProTheme.gold,foregroundColor:BatiProTheme.ink,padding:EdgeInsets.symmetric(horizontal:compact?10:15,vertical:13)),
+              onPressed:_newSale,icon:const Icon(Icons.add_shopping_cart_rounded,size:18),label:Text(compact?'بيع جديد':'فاتورة جديدة'),
+            ),
+          ]),
+        ),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:compact?2:4,crossAxisSpacing:10,mainAxisSpacing:10,childAspectRatio:compact?1.7:1.8,children:[
           _metric('عدد الفواتير',invoices.length.toString(),Icons.receipt_long),
