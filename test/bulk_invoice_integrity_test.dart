@@ -82,6 +82,7 @@ void main() {
       'batipro_purchases_v1': jsonEncode(purchaseInvoices),
       'batipro_sales_v1': jsonEncode(saleInvoices),
       'batipro_stock_movements_v1': jsonEncode(movements),
+      '__batipro_currency_centime_v1': 'test-centime-data-already-normalized',
       'batipro_test_totals_v1': jsonEncode({
         'purchaseTotal': purchaseTotal,
         'saleTotal': saleTotal,
@@ -93,7 +94,7 @@ void main() {
     final backup = await AppStorage.exportBackupJson();
     await AppStorage.clearAll();
     final restoredCount = await AppStorage.restoreBackupJson(backup);
-    expect(restoredCount, 5);
+    expect(restoredCount, 6);
 
     final restoredPurchases = jsonDecode(storage.getString('batipro_purchases_v1')!) as List;
     final restoredSales = jsonDecode(storage.getString('batipro_sales_v1')!) as List;
