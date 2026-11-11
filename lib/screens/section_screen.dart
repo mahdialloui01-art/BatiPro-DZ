@@ -862,7 +862,13 @@ class _EntryEditorState extends State<_EntryEditor> {
     final result = <String, dynamic>{};
     for (final field in widget.fields) {
       final value = _controllers[field.key]!.text.trim();
-      result[field.key] = field.number ? ((double.tryParse(value.replaceAll(',', '.')) ?? 0).roundToDouble()) : value;
+      if (field.number) {
+        final parsed = double.tryParse(value.replaceAll(',', '.')) ?? 0;
+        result[field.key] = const {'unitPrice', 'paid', 'amount', 'balance'}.contains(field.key)
+            ? parsed.roundToDouble() : parsed;
+      } else {
+        result[field.key] = value;
+      }
     }
     if (widget.isPurchase) {
       final enteredQuantity = (result['quantity'] as num).toDouble();
