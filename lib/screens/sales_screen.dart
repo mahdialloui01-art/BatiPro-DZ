@@ -139,6 +139,92 @@ class _SalesScreenState extends State<SalesScreen> {
     _toast('تم حفظ الفاتورة وخصم الكميات من المخزون.$drawerMessage');
   }
 
+
+  Future<void> _returnSale(_SaleInvoice invoice) async {
+    final prefs = await AppStorage.getInstance();
+    List<Map<String, dynamic>> returns = [];
+    List<Map<String, dynamic>> movements = [];
+    try {
+      final rr = prefs.getString('batipro_sales_returns_v1');
+      if (rr != null) returns = (jsonDecode(rr) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final mr = prefs.getString('batipro_stock_movements_v1');
+      if (mr != null) movements = (jsonDecode(mr) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      _toast('تعذر قراءة سجل الإرجاع أو المخزون؛ لم يتم تنفيذ العملية.');
+      return;
+    }
+    final returned = <int, double>{};
+    for (final r in returns.where((e) => e['invoiceId'] == invoice.id)) {
+      final i = (r['lineIndex'] as num?)?.toInt();
+      if (i != null) returned[i] = (returned[i] ?? 0) + ((r['quantity'] as num?)?.toDouble() ?? 0);
+    }
+    final remaining = <int, double>{};
+    for (var i = 0; i < invoice.items.length; i++) {
+      remaining[i] = (((invoice.items[i]['quantity'] as num).toDouble()) - (returned[i] ?? 0)).clamp(0, double.infinity).toDouble();
+    }
+    final draft = await showDialog<_SaleReturnDraft>(
+      context: context, barrierDismissible: false,
+      builder: (_) => _SaleReturnEditor(invoice: invoice, remaining: remaining),
+    );
+    if (draft == null || !mounted) return;
+    var refund = 0.0;
+    final lines = <Map<String, dynamic>>[];
+    for (final entry in draft.quantities.entries) {
+      final i = entry.key, qty = entry.value, item = invoice.items[entry.key];
+      if (!qty.isFinite || qty <= 0 || qty > (remaining[i] ?? 0) + 0.0000001) {
+        _toast('كمية الإرجاع غير صالحة.'); return;
+      }
+      final original = (item['quantity'] as num).toDouble();
+      final amount = original <= 0 ? 0.0 : (((item['total'] as num).toDouble() / original) * qty).roundToDouble();
+      refund += amount;
+      lines.add({'lineIndex': i, 'productId': item['productId'], 'productName': item['name'], 'quantity': qty, 'unit': item['unit'], 'amount': amount});
+    }
+    refund = refund.roundToDouble();
+    if (lines.isEmpty || refund <= 0) { _toast('حدد كمية واحدة على الأقل.'); return; }
+    if (draft.mode == 'cash' && refund > invoice.paid) { _toast('قيمة الرد النقدي أكبر من المبلغ المدفوع.'); return; }
+    if (draft.mode == 'credit' && refund > invoice.due) { _toast('قيمة الإرجاع أكبر من الدين المتبقي.'); return; }
+
+    final updatedProducts = List<_SaleProduct>.of(products);
+    final now = DateTime.now();
+    final returnId = 'RET-\${now.microsecondsSinceEpoch}';
+    for (final line in lines) {
+      final pi = updatedProducts.indexWhere((p) => p.id == line['productId']);
+      if (pi < 0) { _toast('المنتج \${line['productName']} غير موجود في المخزون.'); return; }
+      final p = updatedProducts[pi], qty = (line['quantity'] as num).toDouble();
+      updatedProducts[pi] = _SaleProduct(p.raw, p.quantity + qty);
+      movements.insert(0, {
+        'id': '\$returnId-\${line['lineIndex']}', 'date': now.toIso8601String(),
+        'type': 'sale_return', 'referenceId': invoice.id, 'returnId': returnId,
+        'productId': line['productId'], 'productName': line['productName'],
+        'quantityDelta': qty, 'unit': line['unit'], 'reason': 'إرجاع من فاتورة \${invoice.id}',
+      });
+    }
+    final ii = invoices.indexWhere((e) => e.id == invoice.id);
+    if (ii < 0) return;
+    final current = invoices[ii];
+    final newTotal = (current.total - refund).clamp(0, double.infinity).toDouble();
+    final newPaid = draft.mode == 'cash' ? (current.paid - refund).clamp(0, double.infinity).toDouble() : current.paid;
+    final updated = _SaleInvoice(current.id, current.client, current.method, current.date, newTotal, newPaid, current.items);
+    for (final line in lines) {
+      returns.insert(0, {
+        'id': '\$returnId-\${line['lineIndex']}', 'returnId': returnId,
+        'invoiceId': invoice.id, 'lineIndex': line['lineIndex'],
+        'quantity': line['quantity'], 'amount': line['amount'],
+        'mode': draft.mode, 'date': now.toIso8601String(),
+      });
+    }
+    if (returns.length > 500) returns.removeRange(500, returns.length);
+    if (movements.length > 500) movements.removeRange(500, movements.length);
+    setState(() { products = updatedProducts; invoices[ii] = updated; });
+    await AppStorage.setStrings({
+      stockKey: jsonEncode(products.map((e) => e.toJson()).toList()),
+      salesKey: jsonEncode(invoices.map((e) => e.toJson()).toList()),
+      'batipro_sales_returns_v1': jsonEncode(returns),
+      'batipro_stock_movements_v1': jsonEncode(movements),
+    });
+    _toast('تم تسجيل الإرجاع وإضافة الكمية للمخزون. القيمة: \${_money(refund)}.');
+  }
+
   Future<void> _registerCustomer(String name) async {
     if (name.trim().isEmpty || name == 'زبون نقدي') return;
     final prefs = await AppStorage.getInstance();
@@ -207,6 +293,7 @@ class _SalesScreenState extends State<SalesScreen> {
       ]))),
       actions:[
         if(i.due>0) FilledButton.icon(onPressed:()=>_collectPayment(i),icon:const Icon(Icons.payments_outlined),label:const Text('تحصيل دفعة')),
+        OutlinedButton.icon(onPressed:()=>_returnSale(i),icon:const Icon(Icons.assignment_return),label:const Text('إرجاع سلعة')),
         TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق')),
       ],
     ));
@@ -241,6 +328,86 @@ class _SalesScreenState extends State<SalesScreen> {
     }));
   }
   Widget _metric(String label,String value,IconData icon,{bool warning=false})=>Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(icon,color:warning?BatiProTheme.red:BatiProTheme.gold,size:19),const Spacer(),FittedBox(fit:BoxFit.scaleDown,child:Text(value,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w800,color:BatiProTheme.ink))),Text(label,style:const TextStyle(fontSize:10,color:BatiProTheme.muted))])));
+}
+
+
+class _SaleReturnDraft {
+  final Map<int, double> quantities;
+  final String mode;
+  const _SaleReturnDraft(this.quantities, this.mode);
+}
+
+class _SaleReturnEditor extends StatefulWidget {
+  final _SaleInvoice invoice;
+  final Map<int, double> remaining;
+  const _SaleReturnEditor({required this.invoice, required this.remaining});
+  @override State<_SaleReturnEditor> createState() => _SaleReturnEditorState();
+}
+
+class _SaleReturnEditorState extends State<_SaleReturnEditor> {
+  late final List<TextEditingController> controllers;
+  String mode = 'credit';
+  @override void initState() {
+    super.initState();
+    controllers = List.generate(widget.invoice.items.length, (_) => TextEditingController(text: '0'));
+  }
+  @override void dispose() { for (final c in controllers) { c.dispose(); } super.dispose(); }
+  double get estimated {
+    var sum = 0.0;
+    for (var i = 0; i < controllers.length; i++) {
+      final q = double.tryParse(controllers[i].text.trim().replaceAll(',', '.')) ?? 0;
+      final item = widget.invoice.items[i], original = (item['quantity'] as num).toDouble();
+      if (original > 0 && q > 0) sum += (item['total'] as num).toDouble() / original * q;
+    }
+    return sum.roundToDouble();
+  }
+  void submit() {
+    final q = <int, double>{};
+    for (var i = 0; i < controllers.length; i++) {
+      final n = double.tryParse(controllers[i].text.trim().replaceAll(',', '.')) ?? 0;
+      if (!n.isFinite || n < 0 || n > (widget.remaining[i] ?? 0) + 0.0000001) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تحقق من الكميات؛ تجاوزت الكمية القابلة للإرجاع.'))); return;
+      }
+      if (n > 0) q[i] = n;
+    }
+    if (q.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل كمية واحدة على الأقل.'))); return; }
+    Navigator.pop(context, _SaleReturnDraft(q, mode));
+  }
+  @override Widget build(BuildContext context) => AlertDialog(
+    title: Text('إرجاع من الفاتورة \${widget.invoice.id}'),
+    content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(
+      mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('أدخل الكمية المرجعة بوحدة المخزون الأصلية، وليس بالباليطة.'),
+        const SizedBox(height: 10),
+        for (var i = 0; i < widget.invoice.items.length; i++)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 7), child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.invoice.items[i]['name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('المتبقي: \${widget.remaining[i]} \${widget.invoice.items[i]['unit']}', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+            ])),
+            SizedBox(width: 90, child: TextField(controller: controllers[i],
+              enabled: (widget.remaining[i] ?? 0) > 0,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'الكمية', isDense: true),
+              onChanged: (_) => setState(() {}))),
+          ])),
+        const Divider(),
+        const Text('طريقة التسوية', style: TextStyle(fontWeight: FontWeight.bold)),
+        RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, value: 'credit', groupValue: mode,
+          onChanged: (v) => setState(() => mode = v ?? 'credit'),
+          title: const Text('تخفيض دين الفاتورة'), subtitle: const Text('ينقص المبلغ المتبقي على الزبون')),
+        RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, value: 'cash', groupValue: mode,
+          onChanged: (v) => setState(() => mode = v ?? 'cash'),
+          title: const Text('ردّ المبلغ نقداً'), subtitle: const Text('يُخصم من المبلغ المدفوع سابقاً')),
+        Text('قيمة الإرجاع التقديرية: \${estimated.round()} سنتيم', style: const TextStyle(fontWeight: FontWeight.w800)),
+      ],
+    ))),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton.icon(onPressed: submit, icon: const Icon(Icons.assignment_return), label: const Text('تأكيد الإرجاع')),
+    ],
+  );
 }
 
 class _SaleEditor extends StatefulWidget {
