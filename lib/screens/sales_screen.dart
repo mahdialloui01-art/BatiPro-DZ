@@ -186,17 +186,17 @@ class _SalesScreenState extends State<SalesScreen> {
 
     final updatedProducts = List<_SaleProduct>.of(products);
     final now = DateTime.now();
-    final returnId = 'RET-\${now.microsecondsSinceEpoch}';
+    final returnId = 'RET-${now.microsecondsSinceEpoch}';
     for (final line in lines) {
       final pi = updatedProducts.indexWhere((p) => p.id == line['productId']);
-      if (pi < 0) { _toast('المنتج \${line['productName']} غير موجود في المخزون.'); return; }
+      if (pi < 0) { _toast('المنتج ${line['productName']} غير موجود في المخزون.'); return; }
       final p = updatedProducts[pi], qty = (line['quantity'] as num).toDouble();
       updatedProducts[pi] = _SaleProduct(p.raw, p.quantity + qty);
       movements.insert(0, {
-        'id': '\$returnId-\${line['lineIndex']}', 'date': now.toIso8601String(),
+        'id': '$returnId-${line['lineIndex']}', 'date': now.toIso8601String(),
         'type': 'sale_return', 'referenceId': invoice.id, 'returnId': returnId,
         'productId': line['productId'], 'productName': line['productName'],
-        'quantityDelta': qty, 'unit': line['unit'], 'reason': 'إرجاع من فاتورة \${invoice.id}',
+        'quantityDelta': qty, 'unit': line['unit'], 'reason': 'إرجاع من فاتورة ${invoice.id}',
       });
     }
     final ii = invoices.indexWhere((e) => e.id == invoice.id);
@@ -207,7 +207,7 @@ class _SalesScreenState extends State<SalesScreen> {
     final updated = _SaleInvoice(current.id, current.client, current.method, current.date, newTotal, newPaid, current.items);
     for (final line in lines) {
       returns.insert(0, {
-        'id': '\$returnId-\${line['lineIndex']}', 'returnId': returnId,
+        'id': '$returnId-${line['lineIndex']}', 'returnId': returnId,
         'invoiceId': invoice.id, 'lineIndex': line['lineIndex'],
         'quantity': line['quantity'], 'amount': line['amount'],
         'mode': draft.mode, 'date': now.toIso8601String(),
@@ -222,7 +222,7 @@ class _SalesScreenState extends State<SalesScreen> {
       'batipro_sales_returns_v1': jsonEncode(returns),
       'batipro_stock_movements_v1': jsonEncode(movements),
     });
-    _toast('تم تسجيل الإرجاع وإضافة الكمية للمخزون. القيمة: \${_money(refund)}.');
+    _toast('تم تسجيل الإرجاع وإضافة الكمية للمخزون. القيمة: ${_money(refund)}.');
   }
 
   Future<void> _registerCustomer(String name) async {
@@ -374,7 +374,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
     Navigator.pop(context, _SaleReturnDraft(q, mode));
   }
   @override Widget build(BuildContext context) => AlertDialog(
-    title: Text('إرجاع من الفاتورة \${widget.invoice.id}'),
+    title: Text('إرجاع من الفاتورة ${widget.invoice.id}'),
     content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(
       mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -384,7 +384,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
           Padding(padding: const EdgeInsets.symmetric(vertical: 7), child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.invoice.items[i]['name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text('المتبقي: \${widget.remaining[i]} \${widget.invoice.items[i]['unit']}', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+              Text('المتبقي: ${widget.remaining[i]} ${widget.invoice.items[i]['unit']}', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted)),
             ])),
             SizedBox(width: 90, child: TextField(controller: controllers[i],
               enabled: (widget.remaining[i] ?? 0) > 0,
@@ -400,7 +400,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
         RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, value: 'cash', groupValue: mode,
           onChanged: (v) => setState(() => mode = v ?? 'cash'),
           title: const Text('ردّ المبلغ نقداً'), subtitle: const Text('يُخصم من المبلغ المدفوع سابقاً')),
-        Text('قيمة الإرجاع التقديرية: \${estimated.round()} سنتيم', style: const TextStyle(fontWeight: FontWeight.w800)),
+        Text('قيمة الإرجاع التقديرية: ${estimated.round()} سنتيم', style: const TextStyle(fontWeight: FontWeight.w800)),
       ],
     ))),
     actions: [
