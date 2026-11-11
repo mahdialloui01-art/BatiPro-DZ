@@ -186,15 +186,20 @@ class _SectionScreenState extends State<SectionScreen> {
     if (result == null || !mounted) return;
     setState(() => _saving = true);
     try {
+      if (old == null) {
+        result['id'] = DateTime.now().microsecondsSinceEpoch.toString();
+        result['date'] = DateTime.now().toIso8601String();
+      } else {
+        result['id'] = old['id'];
+        result['date'] = old['date'];
+      }
       if (_kind == 'purchases') await _applyPurchaseToStock(result, old: old);
       setState(() {
         if (old == null) {
-          result['id'] = DateTime.now().microsecondsSinceEpoch.toString();
-          result['date'] = DateTime.now().toIso8601String();
           _items.insert(0, result);
         } else {
           final index = _items.indexWhere((e) => e['id'] == old['id']);
-          if (index >= 0) _items[index] = {...result, 'id': old['id'], 'date': old['date']};
+          if (index >= 0) _items[index] = result;
         }
       });
       await _persist();
@@ -336,7 +341,47 @@ class _SectionScreenState extends State<SectionScreen> {
         (purchase['stockUnitPrice'] as num?)?.toDouble() ??
             (purchase['unitPrice'] as num?)?.toDouble() ?? 0,
         source: purchase);
-    await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+
+    final movementRaw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String, dynamic>>[];
+    if (movementRaw != null) {
+      try {
+        movements.addAll((jsonDecode(movementRaw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+      } catch (_) {
+        throw StateError('تعذر قراءة سجل حركات المخزون؛ لم يتم حفظ وصل الشراء.');
+      }
+    }
+    final now = DateTime.now().toIso8601String();
+    if (old != null) {
+      final oldId = (old['id'] ?? 'unknown').toString();
+      movements.insert(0, {
+        'id': '${oldId}-edit-reversal-${now.hashCode}',
+        'date': now,
+        'type': 'purchase_edit_reversal',
+        'referenceId': oldId,
+        'productName': old['product'],
+        'quantityDelta': -((old['quantity'] as num?)?.toDouble() ?? 0),
+        'unit': old['stockUnit'] ?? old['inputUnit'] ?? 'وحدة',
+        'reason': 'عكس وصل شراء عند التعديل',
+      });
+    }
+    final purchaseId = (purchase['id'] ?? now).toString();
+    movements.insert(0, {
+      'id': '${purchaseId}-purchase',
+      'date': now,
+      'type': old == null ? 'purchase' : 'purchase_edit',
+      'referenceId': purchaseId,
+      'productName': purchase['product'],
+      'quantityDelta': (purchase['quantity'] as num?)?.toDouble() ?? 0,
+      'unit': purchase['stockUnit'] ?? purchase['inputUnit'] ?? 'وحدة',
+      'reason': old == null ? 'إضافة وصل شراء' : 'الكمية الجديدة بعد تعديل وصل الشراء',
+    });
+    if (movements.length > 500) movements.removeRange(500, movements.length);
+    await AppStorage.setStrings({
+      'batipro_inventory_v1': jsonEncode(stock),
+      'batipro_stock_movements_v1': jsonEncode(movements),
+    });
   }
 
   Future<void> _delete(Map<String, dynamic> item) async {
@@ -381,7 +426,34 @@ class _SectionScreenState extends State<SectionScreen> {
             return;
           }
           product['quantity'] = (current - purchased).clamp(0, double.infinity);
-          await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+          final movementRaw = prefs.getString('batipro_stock_movements_v1');
+          final movements = <Map<String, dynamic>>[];
+          if (movementRaw != null) {
+            try {
+              movements.addAll((jsonDecode(movementRaw) as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map)));
+            } catch (_) {
+              _toast('تعذر قراءة سجل الحركات؛ لم يتم حذف وصل الشراء.');
+              return;
+            }
+          }
+          final now = DateTime.now().toIso8601String();
+          final purchaseId = (item['id'] ?? now).toString();
+          movements.insert(0, {
+            'id': '${purchaseId}-delete-reversal-${now.hashCode}',
+            'date': now,
+            'type': 'purchase_delete_reversal',
+            'referenceId': purchaseId,
+            'productName': item['product'],
+            'quantityDelta': -purchased,
+            'unit': item['stockUnit'] ?? item['inputUnit'] ?? product['unit'] ?? 'وحدة',
+            'reason': 'عكس الكمية بعد حذف وصل الشراء',
+          });
+          if (movements.length > 500) movements.removeRange(500, movements.length);
+          await AppStorage.setStrings({
+            'batipro_inventory_v1': jsonEncode(stock),
+            'batipro_stock_movements_v1': jsonEncode(movements),
+          });
         }
       }
     }
