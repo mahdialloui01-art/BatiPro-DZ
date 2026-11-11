@@ -206,7 +206,7 @@ class _SalesPanelState extends State<_SalesPanel> {
     }
     return result;
   }
-  String _money(double value) => '\${value.round()} سنتيم';
+  String _money(double value) => '${value.round()} سنتيم';
   @override
   Widget build(BuildContext context) {
     final buckets = _buckets(DateTime.now());
