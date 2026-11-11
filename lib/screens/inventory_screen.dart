@@ -618,13 +618,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final total = _products.fold<double>(0,(s,p)=>s+p.quantity*p.purchasePrice);
     return SafeArea(child:_loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c)=>SingleChildScrollView(
       padding:EdgeInsets.all(c.maxWidth<650?16:28),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text('BatiPro DZ',style:TextStyle(color:BatiProTheme.muted,fontSize:11)),
-          SizedBox(height:4),Text('المنتجات والمخزون',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-        ])),Wrap(spacing:7,children:[
-          OutlinedButton.icon(onPressed:_showStockMovements,icon:const Icon(Icons.history),label:const Text('سجل الجرد')),
-          FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),icon:const Icon(Icons.add),label:const Text('إضافة')),
-        ])]),
+        Container(
+          width:double.infinity,
+          padding:EdgeInsets.all(c.maxWidth<650?16:21),
+          decoration:BoxDecoration(
+            gradient:const LinearGradient(begin:Alignment.topRight,end:Alignment.bottomLeft,colors:[Color(0xFF173447),Color(0xFF31566A)]),
+            borderRadius:BorderRadius.circular(20),
+          ),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Row(children:[
+              Container(width:40,height:40,decoration:BoxDecoration(color:BatiProTheme.gold,borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.inventory_2_rounded,color:BatiProTheme.ink)),
+              const SizedBox(width:11),
+              const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text('مركز المواد والمخزون',style:TextStyle(color:Color(0xFFD5E2E9),fontSize:10)),
+                SizedBox(height:3),Text('المنتجات والمخزون',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:Colors.white)),
+              ])),
+              IconButton(onPressed:_showStockMovements,tooltip:'سجل حركات المخزون',style:IconButton.styleFrom(backgroundColor:Colors.white.withValues(alpha:.12),foregroundColor:Colors.white),icon:const Icon(Icons.history_rounded)),
+            ]),
+            const SizedBox(height:14),
+            Align(alignment:Alignment.centerLeft,child:FilledButton.icon(
+              style:FilledButton.styleFrom(backgroundColor:BatiProTheme.gold,foregroundColor:BatiProTheme.ink),
+              onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),
+              icon:const Icon(Icons.add_rounded),label:const Text('إضافة مادة جديدة'),
+            )),
+          ]),
+        ),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:c.maxWidth<600?2:3,childAspectRatio:c.maxWidth<600?1.8:2.2,crossAxisSpacing:10,mainAxisSpacing:10,children:[
           _metric('عدد المنتجات','${_products.length}',Icons.inventory_2_outlined),
