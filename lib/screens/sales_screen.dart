@@ -225,6 +225,7 @@ class _SaleEditorState extends State<_SaleEditor>{
   String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' دج';
   void _add(){
     final p=_product;if(p==null||quantity<=0||price<0)return;
+    if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
     final baseQuantity=quantity*_factor(p);
     final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.baseQuantity);
     if(old+baseQuantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('المتوفر من '+p.name+': '+p.quantity.toString()+' '+p.unit+' فقط، والكمية المطلوبة تعادل '+baseQuantity.toString()+' '+p.unit+'.')));return;}
