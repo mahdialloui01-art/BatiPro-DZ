@@ -268,9 +268,9 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
               Row(children: [
                 Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
                 const SizedBox(width: 8),
-                Expanded(child: _field(_purchasePrice, 'سعر الشراء للقضيب/الوحدة', numeric: true)),
+                Expanded(child: _field(_purchasePrice, 'سعر الشراء للقضيب/الوحدة (سنتيم)', numeric: true)),
               ]),
-              _field(_salePrice, 'سعر البيع للقضيب/الوحدة', numeric: true),
+              _field(_salePrice, 'سعر البيع للقضيب/الوحدة (سنتيم)', numeric: true),
               if (_isSteel)
                 const Text('وزن القضيب الدائري يُحسب بالقطر والطول وكثافة الحديد 7850 كغ/م³. الأنواع ذات المقاطع المختلفة تعتمد وزن القطعة الذي تدخله.',
                   style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.4)),
