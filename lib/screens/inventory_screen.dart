@@ -197,13 +197,22 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.product == null ? 'إضافة منتج للمخزون' : 'تعديل المنتج'),
+      title: Row(children: [
+        Container(width: 42, height: 42, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.inventory_2_outlined, color: BatiProTheme.ink)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.product == null ? 'إضافة منتج للمخزون' : 'تعديل المنتج'),
+          const SizedBox(height: 3),
+          const Text('بيانات المادة والتسعير ووحدات التخزين', style: TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400)),
+        ])),
+      ]),
       content: SizedBox(
-        width: 440,
+        width: 490,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 13), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: const Row(children: [Icon(Icons.construction_rounded, color: BatiProTheme.gold), SizedBox(width: 9), Expanded(child: Text('أدخل مواصفات المادة كما تُباع وتُخزّن في المحل.', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)))])),
               _field(_name, 'اسم المنتج'),
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
