@@ -143,9 +143,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisCount: compact ? 2 : (constraints.maxWidth > 1150 ? 4 : 2),
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: compact ? 1.22 : 1.45,
+                    crossAxisSpacing: 9,
+                    mainAxisSpacing: 9,
+                    childAspectRatio: compact ? 1.48 : 1.82,
                     children: [
                       StatCard(label: 'مبيعات اليوم', value: _money(_todaySales), note: '$_todayInvoices فاتورة اليوم', icon: Icons.trending_up_rounded, color: BatiProTheme.green),
                       StatCard(label: 'المشتريات المسجلة', value: _money(_purchasesTotal), note: '$_purchaseCount عملية شراء', icon: Icons.shopping_bag_outlined, color: BatiProTheme.blue),
