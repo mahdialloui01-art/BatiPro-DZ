@@ -324,7 +324,7 @@ class _StockCountDialogState extends State<_StockCountDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('جرد وتسوية المخزون'),
+    title: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.fact_check_outlined, color: BatiProTheme.ink)), const SizedBox(width: 11), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('جرد وتسوية المخزون'), SizedBox(height: 3), Text('مطابقة الرصيد الفعلي مع الكمية المسجلة', style: TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400))]))]),
     content: SizedBox(
       width: 390,
       child: Form(
