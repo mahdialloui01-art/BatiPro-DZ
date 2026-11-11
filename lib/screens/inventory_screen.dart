@@ -562,12 +562,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('سجل تسويات الجرد'),
+        title: const Text('سجل حركات المخزون'),
         content: SizedBox(
           width: 520,
           height: 420,
           child: movements.isEmpty
-              ? const Center(child: Text('لا توجد تسويات جرد مسجلة بعد.'))
+              ? const Center(child: Text('لا توجد حركات مخزون مسجلة بعد.'))
               : ListView.separated(
                   itemCount: movements.length,
                   separatorBuilder: (_, __) => const Divider(height: 12),
@@ -583,8 +583,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                       title: Text((item['productName'] ?? 'مادة').toString()),
                       subtitle: Text(
-                        '${item['reason'] ?? ''} • ${date.length >= 16 ? date.substring(0, 16).replaceFirst('T', ' ') : date}\n'
-                        'قبل: ${item['previousQuantity']} • بعد: ${item['countedQuantity']}',
+                        '${item['reason'] ?? ''} • ${date.length >= 16 ? date.substring(0, 16).replaceFirst('T', ' ') : date}\\n'
+                        '${item['previousQuantity'] != null ? 'قبل: ${item['previousQuantity']} • بعد: ${item['countedQuantity']}' : 'المرجع: ${item['referenceId'] ?? '—'}'}',
                         style: const TextStyle(fontSize: 10),
                       ),
                       trailing: Text(
