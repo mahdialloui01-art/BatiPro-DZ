@@ -93,8 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  String _money(double value) =>
-      '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => '${value.round()} سنتيم';
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +206,7 @@ class _SalesPanelState extends State<_SalesPanel> {
     }
     return result;
   }
-  String _money(double value) => '\${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => '\${value.round()} سنتيم';
   @override
   Widget build(BuildContext context) {
     final buckets = _buckets(DateTime.now());
@@ -291,7 +290,7 @@ class _SalesBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final barHeight = maxAmount <= 0 ? 4.0 : (amount / maxAmount * 91).clamp(4.0, 91.0).toDouble();
     return Tooltip(
-      message: '$label • \${amount.toStringAsFixed(0)} دج',
+      message: '$label • \${amount.toStringAsFixed(0)} سنتيم',
       child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
         SizedBox(height: 99, child: Align(alignment: Alignment.bottomCenter, child: Container(
           width: compactLabel ? 10 : 19, height: barHeight,
@@ -357,7 +356,7 @@ class _RecentSales extends StatelessWidget {
           _SaleRow(
             code: (items[i]['id'] ?? '').toString(),
             client: (items[i]['client'] ?? 'زبون نقدي').toString(),
-            amount: '${((items[i]['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} دج',
+            amount: '${((items[i]['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} سنتيم',
             status: (((items[i]['total'] as num?)?.toDouble() ?? 0) - ((items[i]['paid'] as num?)?.toDouble() ?? 0)) <= 0
                 ? 'مدفوعة'
                 : ((items[i]['paid'] as num?)?.toDouble() ?? 0) > 0 ? 'جزئية' : 'على الحساب',
