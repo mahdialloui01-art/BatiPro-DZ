@@ -24,7 +24,7 @@ void main() {
 
   testWidgets('BatiPro dashboard renders', (tester) async {
     await openApp(tester);
-    expect(find.text('ملخص تجارتك اليوم'), findsOneWidget);
+    expect(find.text('مرحباً بك في BatiPro 👋'), findsOneWidget);
     expect(find.text('لوحة القيادة'), findsOneWidget);
     expect(find.text('مبيعات اليوم'), findsOneWidget);
   });
