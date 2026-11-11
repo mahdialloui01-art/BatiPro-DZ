@@ -478,22 +478,34 @@ class _SectionScreenState extends State<SectionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('BatiPro DZ', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(compact ? 16 : 21),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft,
+                          colors: [Color(0xFF173447), Color(0xFF31566A)]),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(children: [
+                        Container(width: 43, height: 43,
+                          decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(14)),
+                          child: Icon(widget.icon, color: BatiProTheme.ink, size: 22)),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('إدارة محل مواد البناء', style: TextStyle(fontSize: 10, color: Color(0xFFD5E2E9))),
                           const SizedBox(height: 4),
-                          Text(widget.title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
-                        ],
-                      )),
-                      if (_kind != 'reports' && _kind != 'settings')
-                        FilledButton.icon(
-                          onPressed: _saving ? null : () => _openEditor(),
-                          icon: const Icon(Icons.add_rounded),
-                          label: Text(compact ? 'إضافة' : 'إضافة جديد'),
-                        ),
-                    ]),
+                          Text(widget.title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white)),
+                        ])),
+                        if (_kind != 'reports' && _kind != 'settings')
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: BatiProTheme.gold, foregroundColor: BatiProTheme.ink,
+                              padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 15, vertical: 13)),
+                            onPressed: _saving ? null : () => _openEditor(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(compact ? 'إضافة' : 'إضافة جديد'),
+                          ),
+                      ]),
+                    ),
                     const SizedBox(height: 20),
                     if (_kind == 'purchases') _buildPurchases(compact),
                     if (_kind == 'customers') _buildContacts(compact, customers: true),
