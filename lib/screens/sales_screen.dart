@@ -62,11 +62,15 @@ class _SalesScreenState extends State<SalesScreen> {
     invoices.sort((a,b)=>b.date.compareTo(a.date));
     if(mounted)setState(()=>loading=false);
   }
-  Future<void> _persist() async {
-    await AppStorage.setStrings({
+  Future<void> _persist({List<Map<String, dynamic>>? movements}) async {
+    final values = <String, String>{
       stockKey: jsonEncode(products.map((e)=>e.toJson()).toList()),
       salesKey: jsonEncode(invoices.map((e)=>e.toJson()).toList()),
-    });
+    };
+    if (movements != null) {
+      values['batipro_stock_movements_v1'] = jsonEncode(movements);
+    }
+    await AppStorage.setStrings(values);
   }
   void _toast(String s){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));}
   String _money(double n)=>'${n.round()} سنتيم';
@@ -77,15 +81,50 @@ class _SalesScreenState extends State<SalesScreen> {
     if(products.isEmpty){_toast('أضف منتجات إلى المخزون أولاً.');return;}
     final invoice=await showDialog<_SaleInvoice>(context:context,barrierDismissible:false,builder:(_)=>_SaleEditor(products:List.of(products)));
     if(invoice==null||!mounted)return;
+    final prefs = await AppStorage.getInstance();
+    final movementRaw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String, dynamic>>[];
+    if (movementRaw != null) {
+      try {
+        movements.addAll((jsonDecode(movementRaw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+      } catch (_) {
+        _toast('تعذر قراءة سجل حركات المخزون؛ لم يتم اعتماد البيع.');
+        return;
+      }
+    }
+    final now = invoice.date.toIso8601String();
+    for (final item in invoice.items) {
+      final movementId = '${invoice.id}-sale-${item['productId']}';
+      if (movements.any((entry) => entry['id'] == movementId)) continue;
+      movements.insert(0, {
+        'id': movementId,
+        'date': now,
+        'type': 'sale',
+        'referenceId': invoice.id,
+        'productId': item['productId'],
+        'productName': item['name'],
+        'quantityDelta': -((item['quantity'] as num).toDouble()),
+        'unit': item['unit'],
+        'displayQuantity': item['displayQuantity'],
+        'displayUnit': item['displayUnit'],
+        'reason': 'بيع ضمن فاتورة ${invoice.id}',
+      });
+    }
+    if (movements.length > 500) movements.removeRange(500, movements.length);
     final updated=< _SaleProduct >[];
     for(final p in products){
       final sold=invoice.items.where((e)=>e['productId']==p.id).fold<double>(0,(s,e)=>s+(e['quantity'] as num).toDouble());
+      if (sold > p.quantity + 0.0000001) {
+        _toast('الكمية المتوفرة تغيرت؛ أعد فتح الفاتورة قبل اعتماد البيع.');
+        return;
+      }
       updated.add(_SaleProduct(p.raw,p.quantity-sold));
     }
     setState(()=>products=updated);
     setState(()=>invoices.insert(0,invoice));
     await _registerCustomer(invoice.client);
-    await _persist();
+    await _persist(movements: movements);
     var drawerMessage = '';
     if (invoice.paid > 0) {
       try {
