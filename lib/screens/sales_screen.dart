@@ -495,7 +495,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
     Navigator.pop(context, _SaleReturnDraft(q, mode));
   }
   @override Widget build(BuildContext context) => AlertDialog(
-    title: Text('إرجاع من الفاتورة ${widget.invoice.id}'),
+    title: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.assignment_return_outlined, color: BatiProTheme.ink)), const SizedBox(width: 11), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('إرجاع من الفاتورة'), const SizedBox(height: 3), Text(widget.invoice.id, style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w500))]))]),
     content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(
       mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
       children: [
