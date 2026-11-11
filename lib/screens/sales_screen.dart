@@ -123,7 +123,7 @@ class _SalesScreenState extends State<SalesScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(invoice.due)}'),
+          decoration: InputDecoration(labelText: 'المبلغ (سنتيم)', helperText: 'المتبقي: ${_money(invoice.due)}'),
         ),
         actions: [
           TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('إلغاء')),
@@ -222,7 +222,7 @@ class _SaleEditorState extends State<_SaleEditor>{
   double get _total=>cart.fold<double>(0,(s,e)=>s+e.total).roundToDouble();
   double get _paid=>(double.tryParse(paid.text.trim().replaceAll(',','.'))??0).roundToDouble();
   double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
-  String _money(double n)=>n.toStringAsFixed(n==n.roundToDouble()?0:2)+' سنتيم';
+  String _money(double n)=>'${n.round()} سنتيم';
   void _add(){
     final p=_product;if(p==null||quantity<=0||price<0)return;
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
