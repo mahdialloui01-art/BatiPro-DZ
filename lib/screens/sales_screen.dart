@@ -94,8 +94,9 @@ class _SalesScreenState extends State<SalesScreen> {
       }
     }
     final now = invoice.date.toIso8601String();
-    for (final item in invoice.items) {
-      final movementId = '${invoice.id}-sale-${item['productId']}';
+    for (var movementIndex = 0; movementIndex < invoice.items.length; movementIndex++) {
+      final item = invoice.items[movementIndex];
+      final movementId = '${invoice.id}-sale-${item['productId']}-$movementIndex';
       if (movements.any((entry) => entry['id'] == movementId)) continue;
       movements.insert(0, {
         'id': movementId,
