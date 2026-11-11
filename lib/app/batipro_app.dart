@@ -115,18 +115,20 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 258,
-      color: BatiProTheme.ink,
+      width: 270,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF142B3B), Color(0xFF203F53)]),
+      ),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 26),
+              padding: const EdgeInsets.fromLTRB(22, 25, 22, 28),
               child: Row(children: [
                 Container(
-                  width: 43, height: 43,
-                  decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(13)),
+                  width: 47, height: 47,
+                  decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: BatiProTheme.gold.withValues(alpha: .18), blurRadius: 18, offset: Offset(0, 6))]),
                   child: const Icon(Icons.construction_rounded, color: BatiProTheme.ink, size: 27),
                 ),
                 const SizedBox(width: 12),
@@ -154,16 +156,16 @@ class _Sidebar extends StatelessWidget {
                       onTap: () => onSelect(i),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                         decoration: BoxDecoration(
-                          color: active ? const Color(0xFF2A4659) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          border: active ? const Border(right: BorderSide(color: BatiProTheme.gold, width: 3)) : null,
+                          color: active ? const Color(0xFF34566A) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(13),
+                          border: active ? Border.all(color: BatiProTheme.gold.withValues(alpha: .24)) : null,
                         ),
                         child: Row(children: [
                           Icon(items[i].icon, size: 19, color: active ? BatiProTheme.gold : const Color(0xFFB8C6D0)),
                           const SizedBox(width: 12),
-                          Expanded(child: Text(items[i].label, style: TextStyle(color: active ? Colors.white : const Color(0xFFD0DAE1), fontSize: 12.5, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
+                          Expanded(child: Text(items[i].label, style: TextStyle(color: active ? Colors.white : const Color(0xFFD0DAE1), fontSize: 12.5, letterSpacing: .1, fontWeight: active ? FontWeight.w800 : FontWeight.w500))),
                         ]),
                       ),
                     ),
@@ -172,9 +174,9 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
             Container(
-              margin: const EdgeInsets.all(14),
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(14)),
+              margin: const EdgeInsets.all(15),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white.withValues(alpha: .08))),
               child: const Row(children: [
                 Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
                 SizedBox(width: 9),
