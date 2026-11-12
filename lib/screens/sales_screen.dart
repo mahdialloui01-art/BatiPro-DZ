@@ -570,6 +570,14 @@ class _SaleEditorState extends State<_SaleEditor>{
   double get _paid=>_parseDzd(paid.text);
   double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
   String _money(double n)=>_formatDzd(n);
+  void _quickAdd(_SaleProduct item) {
+    selected = item.id;
+    saleUnit = 'حبة';
+    quantity = 1;
+    price = item.price;
+    _add();
+  }
+
   void _add(){
     final p=_product;if(p==null||!quantity.isFinite||quantity<=0||!price.isFinite||price<0)return;
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
@@ -661,7 +669,7 @@ class _SaleEditorState extends State<_SaleEditor>{
               const SizedBox(height:6),
               Expanded(child:shown.isEmpty?Center(child:Text(AppLanguage.text('لا توجد مواد مطابقة','Aucun article trouvé'))):GridView.builder(
                 gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:narrow?2:3,mainAxisSpacing:7,crossAxisSpacing:7,childAspectRatio:1.45),
-                itemCount:shown.length,itemBuilder:(context,i){final item=shown[i];final active=item.id==selected;return Material(color:active?const Color(0xFFE2EDF8):Colors.white,borderRadius:BorderRadius.circular(10),child:InkWell(borderRadius:BorderRadius.circular(10),onTap:()=>setState((){selected=item.id;saleUnit='حبة';quantity=1;price=item.price;}),child:Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(borderRadius:BorderRadius.circular(10),border:Border.all(color:active?const Color(0xFF315F91):const Color(0xFFDCE3EA),width:active?1.6:1)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
+                itemCount:shown.length,itemBuilder:(context,i){final item=shown[i];final active=item.id==selected;return Material(color:active?const Color(0xFFE2EDF8):Colors.white,borderRadius:BorderRadius.circular(10),child:InkWell(borderRadius:BorderRadius.circular(10),onTap:()=>_quickAdd(item),child:Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(borderRadius:BorderRadius.circular(10),border:Border.all(color:active?const Color(0xFF315F91):const Color(0xFFDCE3EA),width:active?1.6:1)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
                   Text(item.name,translate:false,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w800,fontSize:10,color:Color(0xFF20384D))),
                   Text(_money(item.price),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:10,color:Color(0xFF176B4A))),
                   Text(item.quantity.toString()+' '+item.unit,style:const TextStyle(fontSize:9,color:BatiProTheme.muted)),
