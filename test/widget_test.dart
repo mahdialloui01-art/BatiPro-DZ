@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:batipro_dz/data/app_storage.dart';
-import 'package:batipro_dz/app/batipro_app.dart';
+import 'package:batipro_dz/screens/dashboard_screen.dart';
 import 'package:batipro_dz/screens/inventory_screen.dart';
 
 void main() {
@@ -15,7 +15,7 @@ void main() {
   });
 
   Future<void> openApp(WidgetTester tester) async {
-    await tester.pumpWidget(const BatiProApp());
+    await tester.pumpWidget(const MaterialApp(home: Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: DashboardScreen()))));
     // Advance a bounded amount of time instead of waiting for every animation
     // to become idle; some dashboard animations are intentionally continuous.
     await tester.pump();
