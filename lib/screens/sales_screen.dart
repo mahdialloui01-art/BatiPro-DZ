@@ -7,6 +7,20 @@ import '../data/app_storage.dart';
 import '../data/pos_drawer_service.dart';
 import '../app/app_theme.dart';
 
+String _formatDzd(double centimes) {
+  final fixed = (centimes / 100).toStringAsFixed(2).split('.');
+  final digits = fixed[0];
+  final grouped = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) grouped.write(' ');
+    grouped.write(digits[i]);
+  }
+  return '${grouped.toString()},${fixed[1]} دج';
+}
+
+double _parseDzd(String value) =>
+    ((double.tryParse(value.trim().replaceAll(' ', '').replaceAll(',', '.')) ?? double.nan) * 100).roundToDouble();
+
 class _SaleProduct {
   final Map<String,dynamic> raw;
   final double quantity;
@@ -76,7 +90,7 @@ class _SalesScreenState extends State<SalesScreen> {
     await AppStorage.setStrings(values);
   }
   void _toast(String s){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));}
-  String _money(double n)=>'${n.round()} سنتيم';
+  String _money(double n)=>_formatDzd(n);
   String _date(DateTime d)=>d.year.toString()+'/'+d.month.toString().padLeft(2,'0')+'/'+d.day.toString().padLeft(2,'0');
   List<_SaleInvoice> get _visible {final q=search.text.trim().toLowerCase();return invoices.where((e)=>e.client.toLowerCase().contains(q)||e.id.toLowerCase().contains(q)).toList();}
 
@@ -352,14 +366,14 @@ $text | Out-Printer -Name $name
         content: TextField(
           controller: controller,
           autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: AppLanguage.translate('المبلغ (سنتيم)'), helperText: AppLanguage.translate('المتبقي: ${_money(invoice.due)}')),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: AppLanguage.translate('المبلغ بالدينار (دج)'), helperText: AppLanguage.translate('المتبقي: ${_money(invoice.due)}')), 
         ),
         actions: [
           TextButton(onPressed: ()=>Navigator.pop(ctx), child: Text(AppLanguage.text('إلغاء', 'Annuler'))),
           FilledButton(onPressed: (){
-            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'))?.roundToDouble();
-            if (value == null || !value.isFinite || value <= 0 || value > invoice.due) {
+            final value = _parseDzd(controller.text);
+            if (!value.isFinite || value <= 0 || value > invoice.due) {
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً أكبر من صفر ولا يتجاوز المتبقي.')));
               return;
             }
@@ -524,7 +538,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
         RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, value: 'cash', groupValue: mode,
           onChanged: (v) => setState(() => mode = v ?? 'cash'),
           title: const Text('ردّ المبلغ نقداً'), subtitle: const Text('يُخصم من المبلغ المدفوع سابقاً')),
-        Text('قيمة الإرجاع التقديرية: ${estimated.round()} سنتيم', style: const TextStyle(fontWeight: FontWeight.w800)),
+        Text('قيمة الإرجاع التقديرية: ${_formatDzd(estimated)}', style: const TextStyle(fontWeight: FontWeight.w800)),
       ],
     ))),
     actions: [
@@ -551,16 +565,16 @@ class _SaleEditorState extends State<_SaleEditor>{
   @override void dispose(){client.dispose();paid.dispose();super.dispose();}
   _SaleProduct? get _product {for(final p in widget.products){if(p.id==selected)return p;}return null;}
   double get _total=>cart.fold<double>(0,(s,e)=>s+e.total).roundToDouble();
-  double get _paid=>(double.tryParse(paid.text.trim().replaceAll(',','.'))??0).roundToDouble();
+  double get _paid=>_parseDzd(paid.text);
   double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
-  String _money(double n)=>'${n.round()} سنتيم';
+  String _money(double n)=>_formatDzd(n);
   void _add(){
     final p=_product;if(p==null||quantity<=0||price<0)return;
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
     final baseQuantity=quantity*_factor(p);
     final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.baseQuantity);
     if(old+baseQuantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(AppLanguage.translate('المتوفر من ') + p.name + AppLanguage.translate(': ') + p.quantity.toString() + ' ' + AppLanguage.translate(p.unit) + AppLanguage.translate(' فقط، والكمية المطلوبة تعادل ') + baseQuantity.toString() + ' ' + AppLanguage.translate(p.unit) + '.', translate:false)));return;}
-    setState((){cart.add(_SaleLine(p,quantity,price,baseQuantity,saleUnit=='باليطة'?'باليطة':p.unit));if(method=='نقداً')paid.text=_total.toStringAsFixed(2);});
+    setState((){cart.add(_SaleLine(p,quantity,price,baseQuantity,saleUnit=='باليطة'?'باليطة':p.unit));if(method=='نقداً')paid.text=(_total/100).toStringAsFixed(2).replaceAll('.', ',');});
   }
   void _save(){
     if(!form.currentState!.validate())return;
@@ -580,14 +594,14 @@ class _SaleEditorState extends State<_SaleEditor>{
       if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:InputDecoration(labelText:AppLanguage.text('طريقة البيع', 'Mode de vente')),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
       const SizedBox(height:8),Row(children:[
         Expanded(child:TextFormField(key:ValueKey('qty-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:AppLanguage.text('الكمية ${saleUnit=='باليطة'?'باليطة':'حبة/وحدة'}', 'Quantité ${saleUnit=='باليطة'?'palette':'pièce/unité'}')),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
-        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:price.toString(),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:saleUnit=='باليطة'?AppLanguage.text('سعر الباليطة بالسنتيم', 'Prix palette (centimes)'):AppLanguage.text('سعر الحبة بالسنتيم', 'Prix pièce (centimes)')),onChanged:(v)=>price=(double.tryParse(v.replaceAll(',','.'))??-1).roundToDouble())),
+        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:(price/100).toStringAsFixed(2).replaceAll('.', ','),keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:saleUnit=='باليطة'?AppLanguage.text('سعر الباليطة بالدينار (دج)', 'Prix palette (DZD)'):AppLanguage.text('سعر الحبة بالدينار (دج)', 'Prix pièce (DZD)')),onChanged:(v)=>price=_parseDzd(v))),
         const SizedBox(width:6),IconButton.filled(onPressed:_add,icon:const Icon(Icons.add),tooltip: AppLanguage.translate('إضافة')),
       ]),
       if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit+(p.palletCount>0?' • يعادل ${(p.quantity/p.palletCount).toStringAsFixed(2)} باليطة':'') ,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
       if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+AppLanguage.translate(cart[i].saleUnit),translate:false,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState((){cart.removeAt(i);if(method=='نقداً')paid.text=_total.toStringAsFixed(2);}),icon:const Icon(Icons.close,size:17))])])),
       const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:Text('الإجمالي: '+_money(_total),style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:BatiProTheme.ink))),
       const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:InputDecoration(labelText:AppLanguage.text('طريقة الدفع', 'Mode de paiement')),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
-      const SizedBox(height:8),TextFormField(controller:paid,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:AppLanguage.text('المبلغ المدفوع بالسنتيم', 'Montant payé (centimes)')),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return AppLanguage.translate('أدخل مبلغاً صحيحاً');if(n>_total)return AppLanguage.translate('المبلغ أكبر من الإجمالي');return null;}),
+      const SizedBox(height:8),TextFormField(controller:paid,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:AppLanguage.text('المبلغ المدفوع بالدينار (دج)', 'Montant payé (DZD)')),onChanged:(_)=>setState((){}),validator:(v){final n=_parseDzd(v??'');if(!n.isFinite||n<0)return AppLanguage.translate('أدخل مبلغاً صحيحاً');if(n>_total)return AppLanguage.translate('المبلغ أكبر من الإجمالي');return null;}),
       const SizedBox(height:5),Text('المتبقي: '+_money((_total-_paid).clamp(0,double.infinity).toDouble()),style:const TextStyle(fontSize:12,color:BatiProTheme.red,fontWeight:FontWeight.bold)),
     ])))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:Text(AppLanguage.text('إلغاء', 'Annuler'))),FilledButton.icon(onPressed:_save,icon:const Icon(Icons.save_outlined),label:Text(AppLanguage.text('حفظ الفاتورة', 'Enregistrer la facture')))]);
   }
