@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../app/app_language.dart';
 import '../data/app_storage.dart';
 import '../data/backup_service.dart';
 import '../data/api_client.dart';
@@ -30,6 +31,7 @@ class _SectionScreenState extends State<SectionScreen> {
   final _search = TextEditingController();
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  String _language = 'ar';
   bool _saving = false;
   String _kind = '';
   String _storageKey = '';
@@ -1127,6 +1129,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Future<void> _load() async {
     final prefs = await AppStorage.getInstance();
+    _language = prefs.getString('batipro_language') ?? 'ar';
+    AppLanguage.set(_language);
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
@@ -1349,6 +1353,28 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       padding: const EdgeInsets.all(17),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const PosPeripheralsPanel(),
+        const SizedBox(height: 18),
+        const Text('Langue / اللغة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _language,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'لغة البرنامج / Langue de l’application',
+            prefixIcon: Icon(Icons.translate_rounded),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'ar', child: Text('العربية')),
+            DropdownMenuItem(value: 'fr', child: Text('Français')),
+          ],
+          onChanged: (value) async {
+            if (value == null) return;
+            final prefs = await AppStorage.getInstance();
+            await prefs.setString('batipro_language', value);
+            AppLanguage.set(value);
+            if (mounted) setState(() => _language = value);
+          },
+        ),
         const SizedBox(height: 18),
         const Text('معلومات المحل', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
         const SizedBox(height: 14),
