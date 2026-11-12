@@ -118,7 +118,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
 
   Widget _field(TextEditingController controller, String label, {bool numeric = false, String? helper}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: TextFormField(
         controller: controller,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
@@ -214,7 +214,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 13), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: const Row(children: [Icon(Icons.construction_rounded, color: BatiProTheme.gold), SizedBox(width: 9), Expanded(child: Text('أدخل مواصفات المادة كما تُباع وتُخزّن في المحل.', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)))])),
+              Container(width: double.infinity, padding: const EdgeInsets.all(9), margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: const Row(children: [Icon(Icons.construction_rounded, color: BatiProTheme.gold), SizedBox(width: 9), Expanded(child: Text('أدخل مواصفات المادة كما تُباع وتُخزّن في المحل.', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)))])),
               _field(_name, 'اسم المنتج'),
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -340,7 +340,7 @@ class _StockCountDialogState extends State<_StockCountDialog> {
             ),
             const SizedBox(height: 8),
             Text(AppLanguage.translate('الرصيد الحالي: ') + '${widget.product.quantity} ${AppLanguage.translate(widget.product.unit)}', translate: false),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _quantity,
               autofocus: true,
