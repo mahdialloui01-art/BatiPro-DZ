@@ -687,6 +687,21 @@ class AppLanguage {
       'طن': 'Tonne',
       'كغ': 'kg',
       ': ': ' : ',
+      'قسم ': 'Section ',
+      ' متبقية': ' restantes',
+      'السنة': 'Année',
+      'على الحساب': 'À crédit',
+      'دفع جزئي': 'Paiement partiel',
+      'مدفوعة': 'Payée',
+      'غير مدفوعة': 'Non payée',
+      'إرجاع جزئي': 'Retour partiel',
+      'إرجاع كامل': 'Retour complet',
+      'المتوفر: ': 'Disponible : ',
+      'الرصيد الحالي: ': 'Stock actuel : ',
+      'الكمية المتبقية: ': 'Quantité restante : ',
+      'الكمية: ': 'Quantité : ',
+      'عدد المنتجات': 'Nombre de produits',
+      'أنواع ': 'Catégories : ',
     };;;
     final ordered = phrases.entries.toList()..sort((a, b) => b.key.length.compareTo(a.key.length));
     for (final entry in ordered) {
