@@ -100,17 +100,21 @@ class _SalesScreenState extends State<SalesScreen> {
   String _date(DateTime d)=>d.year.toString()+'/'+d.month.toString().padLeft(2,'0')+'/'+d.day.toString().padLeft(2,'0');
   List<_SaleInvoice> get _visible {final q=search.text.trim().toLowerCase();return invoices.where((e)=>e.client.toLowerCase().contains(q)||e.id.toLowerCase().contains(q)).toList();}
 
-  void _posAdd(_SaleProduct product) {
+  void _posAdd(_SaleProduct product, {bool pallet = false}) {
+    final factor = pallet ? product.palletCount.toDouble() : 1.0;
+    if (pallet && product.palletCount <= 0) return;
     if (product.quantity <= 0) { _toast('هذه المادة غير متوفرة في المخزون.'); return; }
-    final index = _posCart.indexWhere((line) => line.product.id == product.id && line.saleUnit == product.unit);
+    final saleUnit = pallet ? 'باليطة' : product.unit;
+    final unitPrice = product.price * factor;
+    final index = _posCart.indexWhere((line) => line.product.id == product.id && line.saleUnit == saleUnit);
     final current = index < 0 ? 0.0 : _posCart[index].baseQuantity;
-    if (current + 1 > product.quantity + 0.0000001) { _toast('الكمية المتوفرة غير كافية.'); return; }
+    if (current + factor > product.quantity + 0.0000001) { _toast('الكمية المتوفرة غير كافية.'); return; }
     setState(() {
       if (index >= 0) {
         final old = _posCart[index];
-        _posCart[index] = _SaleLine(old.product, old.quantity + 1, old.price, old.baseQuantity + 1, old.saleUnit);
+        _posCart[index] = _SaleLine(old.product, old.quantity + 1, old.price, old.baseQuantity + factor, old.saleUnit);
       } else {
-        _posCart.add(_SaleLine(product, 1, product.price, 1, product.unit));
+        _posCart.add(_SaleLine(product, 1, unitPrice, factor, saleUnit));
       }
       if (_posPayment == 'نقداً') _posPaid.text = (_posTotal / 100).toStringAsFixed(2);
     });
@@ -130,9 +134,11 @@ class _SalesScreenState extends State<SalesScreen> {
     if (next <= 0) {
       setState(() => _posCart.removeAt(index));
     } else {
+      final factor = line.saleUnit == 'باليطة' ? line.product.palletCount.toDouble() : 1.0;
+      final nextBaseQuantity = next * factor;
       final other = _posCart.where((e) => e.product.id == line.product.id && !identical(e, line)).fold<double>(0, (s,e)=>s+e.baseQuantity);
-      if (other + next > line.product.quantity) { _toast('الكمية تتجاوز المخزون المتوفر.'); return; }
-      setState(() => _posCart[index] = _SaleLine(line.product,next,line.price,next,line.saleUnit));
+      if (other + nextBaseQuantity > line.product.quantity) { _toast('الكمية تتجاوز المخزون المتوفر.'); return; }
+      setState(() => _posCart[index] = _SaleLine(line.product,next,line.price,nextBaseQuantity,line.saleUnit));
     }
     if (_posPayment == 'نقداً') _posPaid.text = (_posTotal / 100).toStringAsFixed(2);
   }
@@ -192,7 +198,18 @@ class _SalesScreenState extends State<SalesScreen> {
         itemBuilder:(context,i){final p=visible[i];return Material(color:Colors.white,borderRadius:BorderRadius.circular(12),child:InkWell(onTap:()=>_posAdd(p),borderRadius:BorderRadius.circular(12),child:Container(padding:const EdgeInsets.all(10),decoration:BoxDecoration(borderRadius:BorderRadius.circular(12),border:Border.all(color:const Color(0xFFDCE4EC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
           Text(p.name,translate:false,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
           Text(_money(p.price),style:const TextStyle(fontWeight:FontWeight.w900,color:Color(0xFF176B4A))),
-          Row(children:[Expanded(child:Text('${p.quantity} ${p.unit}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted))),const Icon(Icons.add_circle,color:Color(0xFF176B4A),size:19)]),
+          Row(children:[
+            Expanded(child:Text('${p.quantity} ${p.unit}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted))),
+            if(p.palletCount>0) IconButton(
+              tooltip:'إضافة بالبالطة (${p.palletCount} حبة)',
+              visualDensity:VisualDensity.compact,
+              constraints:const BoxConstraints(minWidth:30,minHeight:30),
+              padding:EdgeInsets.zero,
+              onPressed:()=>_posAdd(p,pallet:true),
+              icon:const Icon(Icons.inventory_2_outlined,color:Color(0xFF245A9A),size:18),
+            ),
+            const Icon(Icons.add_circle,color:Color(0xFF176B4A),size:19),
+          ]),
         ]))));},
       )),
     ]);
