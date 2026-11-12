@@ -421,10 +421,10 @@ $text | Out-Printer -Name $name
     final total=invoices.fold<double>(0,(s,e)=>s+e.total),paid=invoices.fold<double>(0,(s,e)=>s+e.paid),debt=invoices.fold<double>(0,(s,e)=>s+e.due);
     return SafeArea(child:loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c){
       final compact=c.maxWidth<650;
-      return SingleChildScrollView(padding:EdgeInsets.all(compact?16:28),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      return SingleChildScrollView(padding:EdgeInsets.all(compact?10:20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Container(
           width:double.infinity,
-          padding:EdgeInsets.all(compact?16:21),
+          padding:EdgeInsets.all(compact?12:17),
           decoration:BoxDecoration(
             gradient:const LinearGradient(begin:Alignment.topRight,end:Alignment.bottomLeft,colors:[Color(0xFF173447),Color(0xFF31566A)]),
             borderRadius:BorderRadius.circular(20),
@@ -453,14 +453,14 @@ $text | Out-Printer -Name $name
         TextField(controller:search,onChanged:(_)=>setState((){}),decoration:InputDecoration(hintText: AppLanguage.translate('ابحث برقم الفاتورة أو اسم الزبون'),prefixIcon:Icon(Icons.search))),
         const SizedBox(height:18),
         Row(children:[const Expanded(child:Text('سجل الفواتير',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800,color:BatiProTheme.ink))),Text(_visible.length.toString()+' فاتورة',style:const TextStyle(fontSize:11,color:BatiProTheme.muted))]),
-        const SizedBox(height:10),
+        const SizedBox(height:6),
         if(_visible.isEmpty)Card(child:Padding(padding:const EdgeInsets.all(28),child:Center(child:Column(children:[const Icon(Icons.receipt_long_outlined,size:42,color:BatiProTheme.muted),const SizedBox(height:10),const Text('لا توجد فواتير بعد',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:5),const Text('أنشئ أول فاتورة بيع وستظهر هنا.',style:TextStyle(fontSize:11,color:BatiProTheme.muted)),const SizedBox(height:10),OutlinedButton.icon(onPressed:_newSale,icon:const Icon(Icons.add),label:const Text('إنشاء فاتورة'))]))))
         else ..._visible.map((i)=>Card(margin:const EdgeInsets.only(bottom:9),child:InkWell(borderRadius:BorderRadius.circular(18),onTap:()=>_showInvoice(i),child:Padding(padding:const EdgeInsets.all(13),child:Row(children:[
           Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.14),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.receipt_long,color:BatiProTheme.ink)),
           const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(i.client,translate:false,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),Text(i.id+' • '+_date(i.date),style:const TextStyle(fontSize:10,color:BatiProTheme.muted))])),
           Column(crossAxisAlignment:CrossAxisAlignment.end,children:[Text(_money(i.total),style:const TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:4),Text(i.status,style:TextStyle(fontSize:10,fontWeight:FontWeight.bold,color:i.due>0?BatiProTheme.red:BatiProTheme.green))]),const Icon(Icons.chevron_left,color:BatiProTheme.muted),
         ]))))),
-        const SizedBox(height:12),const Text('الفواتير محفوظة محلياً دون إنترنت، والبيع يخصم الكمية من المخزون تلقائياً.',style:TextStyle(fontSize:11,color:BatiProTheme.muted)),
+        const SizedBox(height:7),const Text('الفواتير محفوظة محلياً دون إنترنت، والبيع يخصم الكمية من المخزون تلقائياً.',style:TextStyle(fontSize:11,color:BatiProTheme.muted)),
       ]));
     }));
   }
@@ -589,7 +589,7 @@ class _SaleEditorState extends State<_SaleEditor>{
       Container(width:double.infinity,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(13)),child:const Row(children:[Icon(Icons.offline_bolt_outlined,color:BatiProTheme.green,size:18),SizedBox(width:9),Expanded(child:Text('البيع يخصم الكمية من المخزون تلقائياً بعد حفظ الفاتورة.',style:TextStyle(fontSize:11,color:BatiProTheme.muted)))])),
       const SizedBox(height:12),
       TextFormField(controller:client,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),decoration:InputDecoration(labelText:AppLanguage.text('اسم الزبون (اختياري)', 'Nom du client (facultatif)'),prefixIcon:Icon(Icons.person_outline))),
-      const SizedBox(height:12),Text(AppLanguage.text('المنتجات', 'Articles'),style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
+      const SizedBox(height:12),Text(AppLanguage.text('المنتجات', 'Articles'),style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:6),
       DropdownButtonFormField<String>(value:selected,isExpanded:true,decoration:InputDecoration(labelText:AppLanguage.text('اختر المنتج', 'Choisir un article')),items:widget.products.map((p)=>DropdownMenuItem(value:p.id,child:Text(p.name+' • '+AppLanguage.translate((p.raw['category']??'').toString())+' — '+p.quantity.toString()+' '+AppLanguage.translate(p.unit),translate:false,overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){if(v==null)return;final chosen=widget.products.firstWhere((item)=>item.id==v);setState((){selected=v;saleUnit='حبة';quantity=1;price=chosen.price;});}),
       if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:InputDecoration(labelText:AppLanguage.text('طريقة البيع', 'Mode de vente')),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
       const SizedBox(height:8),Row(children:[
