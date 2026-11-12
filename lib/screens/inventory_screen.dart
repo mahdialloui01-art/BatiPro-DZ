@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../data/app_storage.dart';
 import '../app/app_theme.dart';
 
