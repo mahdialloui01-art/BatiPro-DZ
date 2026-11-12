@@ -58,7 +58,8 @@ class _SaleInvoice {
 }
 
 class SalesScreen extends StatefulWidget {
-  const SalesScreen({super.key});
+  final String? sellerName;
+  const SalesScreen({super.key, this.sellerName});
   @override State<SalesScreen> createState()=>_SalesScreenState();
 }
 class _SalesScreenState extends State<SalesScreen> {
@@ -550,7 +551,8 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
 
 class _SaleEditor extends StatefulWidget {
   final List<_SaleProduct> products;
-  const _SaleEditor({required this.products});
+  final String? sellerName;
+  const _SaleEditor({required this.products, this.sellerName});
   @override State<_SaleEditor> createState()=>_SaleEditorState();
 }
 class _SaleEditorState extends State<_SaleEditor>{
