@@ -523,7 +523,7 @@ class _SectionScreenState extends State<SectionScreen> {
                           ),
                       ]),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 13),
                     if (_kind == 'purchases') _buildPurchases(compact),
                     if (_kind == 'customers') _buildContacts(compact, customers: true),
                     if (_kind == 'suppliers') _buildContacts(compact, customers: false),
@@ -777,7 +777,7 @@ class _SectionScreenState extends State<SectionScreen> {
               _metric('المصاريف', _money(expenses), Icons.receipt_long_outlined),
               _metric('المبالغ المحصلة', _money(paidSales), Icons.payments_outlined),
             ], compact),
-            const SizedBox(height: 14),
+            const SizedBox(height: 9),
             Card(child: Padding(
               padding: const EdgeInsets.all(17),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1042,7 +1042,7 @@ class _EntryEditorState extends State<_EntryEditor> {
             Container(width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 14), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: Row(children: [const Icon(Icons.info_outline_rounded, color: BatiProTheme.blue, size: 18), const SizedBox(width: 9), Expanded(child: Text(widget.isPurchase ? 'الأسعار تُسجّل بالسنتيم الجزائري، وسيظهر ملخص التكلفة قبل الحفظ.' : 'تأكد من صحة البيانات قبل اعتماد السجل.', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, height: 1.4)))])),
             for (final field in widget.fields)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: field.options.isNotEmpty
                     ? DropdownButtonFormField<String>(
                         value: field.options.contains(_controllers[field.key]!.text)
@@ -1367,7 +1367,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _field(TextEditingController controller, String label, {IconData? icon}) =>
-      Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(
+      Padding(padding: const EdgeInsets.only(bottom: 7), child: TextField(
         controller: controller,
         decoration: InputDecoration(labelText: AppLanguage.translate(label), prefixIcon: icon == null ? null : Icon(icon)),
       ));
@@ -1376,10 +1376,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Card(child: Padding(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const PosPeripheralsPanel(),
-        const SizedBox(height: 18),
+        const SizedBox(height: 11),
         const Text('Langue / اللغة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
