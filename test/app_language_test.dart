@@ -21,6 +21,21 @@ void main() {
     expect(AppLanguage.translate('1250 سنتيم'), '1250 centimes');
   });
 
+  test('switches language labels without changing Arabic source values', () {
+    AppLanguage.set('ar');
+    expect(AppLanguage.text('البيع والشراء', 'Ventes et achats'), 'البيع والشراء');
+    AppLanguage.set('fr');
+    expect(AppLanguage.text('البيع والشراء', 'Ventes et achats'), 'Ventes et achats');
+    expect(AppLanguage.text('وضع العمل دون إنترنت', 'Mode hors ligne'), 'Mode hors ligne');
+  });
+
+  test('keeps language selection limited to supported locales', () {
+    AppLanguage.set('fr');
+    expect(AppLanguage.current.value, 'fr');
+    AppLanguage.set('en');
+    expect(AppLanguage.current.value, 'ar');
+  });
+
   test('translates construction material names', () {
     AppLanguage.set('fr');
     expect(AppLanguage.translate('حديد تسليح T12'), 'Acier d’armature T12');
