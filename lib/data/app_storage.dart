@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart' as legacy_prefs;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart' as sqflite;
 
 /// SQLite-backed local persistence. Existing SharedPreferences values are
 /// copied once and retained there until the user has a verified backup.
@@ -23,6 +24,9 @@ class AppStorage {
     if (useFfi) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
+    } else {
+      // Android/iOS use the native SQLite plugin; desktop and in-memory tests use FFI.
+      databaseFactory = sqflite.databaseFactory;
     }
 
     late final String databasePath;
