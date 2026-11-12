@@ -68,8 +68,13 @@ class _SalesScreenState extends State<SalesScreen> {
   List<_SaleProduct> products=[];
   List<_SaleInvoice> invoices=[];
   bool loading=true;
+  final _posSearch = TextEditingController();
+  final _posClient = TextEditingController();
+  final _posPaid = TextEditingController(text: '0');
+  final List<_SaleLine> _posCart = [];
+  String _posPayment = 'نقداً';
   @override void initState(){super.initState();_load();}
-  @override void dispose(){search.dispose();super.dispose();}
+  @override void dispose(){search.dispose();_posSearch.dispose();_posClient.dispose();_posPaid.dispose();super.dispose();}
   Future<void> _load() async {
     final prefs=await AppStorage.getInstance();
     try{
@@ -94,6 +99,128 @@ class _SalesScreenState extends State<SalesScreen> {
   String _money(double n)=>_formatDzd(n);
   String _date(DateTime d)=>d.year.toString()+'/'+d.month.toString().padLeft(2,'0')+'/'+d.day.toString().padLeft(2,'0');
   List<_SaleInvoice> get _visible {final q=search.text.trim().toLowerCase();return invoices.where((e)=>e.client.toLowerCase().contains(q)||e.id.toLowerCase().contains(q)).toList();}
+
+  void _posAdd(_SaleProduct product) {
+    if (product.quantity <= 0) { _toast('هذه المادة غير متوفرة في المخزون.'); return; }
+    final index = _posCart.indexWhere((line) => line.product.id == product.id && line.saleUnit == product.unit);
+    final current = index < 0 ? 0.0 : _posCart[index].baseQuantity;
+    if (current + 1 > product.quantity + 0.0000001) { _toast('الكمية المتوفرة غير كافية.'); return; }
+    setState(() {
+      if (index >= 0) {
+        final old = _posCart[index];
+        _posCart[index] = _SaleLine(old.product, old.quantity + 1, old.price, old.baseQuantity + 1, old.saleUnit);
+      } else {
+        _posCart.add(_SaleLine(product, 1, product.price, 1, product.unit));
+      }
+      if (_posPayment == 'نقداً') _posPaid.text = (_posTotal / 100).toStringAsFixed(2);
+    });
+  }
+
+  double get _posTotal => _posCart.fold<double>(0, (sum, line) => sum + line.total).roundToDouble();
+  double get _posPaidAmount => _parseDzd(_posPaid.text);
+
+  void _posChangeQty(int index, int delta) {
+    final line = _posCart[index];
+    final next = line.quantity + delta;
+    if (next <= 0) {
+      setState(() => _posCart.removeAt(index));
+    } else {
+      final other = _posCart.where((e) => e.product.id == line.product.id && !identical(e, line)).fold<double>(0, (s,e)=>s+e.baseQuantity);
+      if (other + next > line.product.quantity) { _toast('الكمية تتجاوز المخزون المتوفر.'); return; }
+      setState(() => _posCart[index] = _SaleLine(line.product,next,line.price,next,line.saleUnit));
+    }
+    if (_posPayment == 'نقداً') _posPaid.text = (_posTotal / 100).toStringAsFixed(2);
+  }
+
+  Future<void> _posSave() async {
+    if (_posCart.isEmpty) { _toast('اختر مادة واحدة على الأقل.'); return; }
+    final paidAmount = _posPaidAmount;
+    if (!paidAmount.isFinite || paidAmount < 0 || paidAmount > _posTotal) { _toast('تحقق من المبلغ المدفوع.'); return; }
+    if (_posPayment == 'نقداً' && paidAmount < _posTotal) { _toast('الدفع نقداً يتطلب دفع كامل المبلغ.'); return; }
+    final invoice = _SaleInvoice(
+      'INV-${DateTime.now().millisecondsSinceEpoch}',
+      _posClient.text.trim().isEmpty ? 'زبون نقدي' : _posClient.text.trim(),
+      _posPayment, DateTime.now(), _posTotal, paidAmount,
+      _posCart.map((e)=>e.toJson()).toList(), seller: widget.sellerName ?? '',
+    );
+    final prefs = await AppStorage.getInstance();
+    final movementRaw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String,dynamic>>[];
+    if (movementRaw != null) {
+      try { movements.addAll((jsonDecode(movementRaw) as List).map((e)=>Map<String,dynamic>.from(e as Map))); }
+      catch (_) { _toast('تعذر قراءة سجل المخزون؛ لم يتم اعتماد البيع.'); return; }
+    }
+    final updated = <_SaleProduct>[];
+    for (final product in products) {
+      final sold = invoice.items.where((e)=>e['productId']==product.id).fold<double>(0,(s,e)=>s+(e['quantity'] as num).toDouble());
+      if (sold > product.quantity + 0.0000001) { _toast('المخزون تغير. حدّث الشاشة ثم أعد البيع.'); return; }
+      updated.add(_SaleProduct(product.raw, product.quantity - sold));
+    }
+    for (var i=0;i<invoice.items.length;i++) {
+      final item=invoice.items[i];
+      movements.insert(0, {
+        'id':'${invoice.id}-sale-${item['productId']}-$i','date':invoice.date.toIso8601String(),
+        'type':'sale','referenceId':invoice.id,'productId':item['productId'],'productName':item['name'],
+        'quantityDelta':-((item['quantity'] as num).toDouble()),'unit':item['unit'],
+        'displayQuantity':item['displayQuantity'],'displayUnit':item['displayUnit'],
+        'reason':'بيع ضمن فاتورة ${invoice.id}',
+      });
+    }
+    if (movements.length > 500) movements.removeRange(500,movements.length);
+    setState(() { products=updated; invoices.insert(0,invoice); _posCart.clear(); _posClient.clear(); _posPaid.text='0'; });
+    await _registerCustomer(invoice.client);
+    await _persist(movements:movements);
+    if (invoice.paid > 0) { try { await PosDrawerService.openAfterSale(); } catch (_) {} }
+    _toast('تم حفظ الفاتورة وخصم الكمية من المخزون.');
+  }
+
+  Widget _sellerPosLayout() {
+    final query = _posSearch.text.trim().toLowerCase();
+    final visible = products.where((p)=>p.name.toLowerCase().contains(query) || (p.raw['category']??'').toString().toLowerCase().contains(query)).toList();
+    final compact = MediaQuery.of(context).size.width < 720;
+    final catalog = Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Padding(padding:const EdgeInsets.fromLTRB(12,10,12,7),child:TextField(controller:_posSearch,onChanged:(_)=>setState((){}),decoration:const InputDecoration(isDense:true,prefixIcon:Icon(Icons.search),hintText:'ابحث عن مادة أو صنف...'))),
+      Expanded(child:visible.isEmpty?const Center(child:Text('لا توجد مواد في المخزون أو لا توجد نتائج.')):GridView.builder(
+        padding:const EdgeInsets.all(10),
+        gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:compact?2:3,mainAxisSpacing:8,crossAxisSpacing:8,childAspectRatio:compact?1.55:1.65),
+        itemCount:visible.length,
+        itemBuilder:(context,i){final p=visible[i];return Material(color:Colors.white,borderRadius:BorderRadius.circular(12),child:InkWell(onTap:()=>_posAdd(p),borderRadius:BorderRadius.circular(12),child:Container(padding:const EdgeInsets.all(10),decoration:BoxDecoration(borderRadius:BorderRadius.circular(12),border:Border.all(color:const Color(0xFFDCE4EC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
+          Text(p.name,translate:false,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
+          Text(_money(p.price),style:const TextStyle(fontWeight:FontWeight.w900,color:Color(0xFF176B4A))),
+          Row(children:[Expanded(child:Text('${p.quantity} ${p.unit}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted))),const Icon(Icons.add_circle,color:Color(0xFF176B4A),size:19)]),
+        ]))));},
+      )),
+    ]);
+    final cartPanel = Container(color:Colors.white,padding:const EdgeInsets.fromLTRB(12,10,12,10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Row(children:[const Icon(Icons.shopping_cart_outlined,color:BatiProTheme.ink),const SizedBox(width:7),const Expanded(child:Text('السلة الحالية',style:TextStyle(fontWeight:FontWeight.w900,fontSize:14))),Text('${_posCart.length} مواد',style:const TextStyle(fontSize:10,color:BatiProTheme.muted))]),
+      const SizedBox(height:6),
+      TextField(controller:_posClient,decoration:const InputDecoration(isDense:true,labelText:'اسم الزبون (اختياري)',prefixIcon:Icon(Icons.person_outline,size:18))),
+      Expanded(child:_posCart.isEmpty?const Center(child:Text('اضغط على أي مادة لإضافتها مباشرةً',style:TextStyle(color:BatiProTheme.muted,fontSize:12))):ListView.separated(itemCount:_posCart.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(context,i){final line=_posCart[i];return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(line.product.name,translate:false,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11,fontWeight:FontWeight.w800)),Text(_money(line.total),style:const TextStyle(fontSize:10,color:BatiProTheme.muted))])),
+        IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,-1),icon:const Icon(Icons.remove_circle_outline,size:19)),
+        Text(line.quantity.toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
+        IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,1),icon:const Icon(Icons.add_circle_outline,size:19)),
+        IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState(()=>_posCart.removeAt(i)),icon:const Icon(Icons.delete_outline,color:Colors.red,size:18)),
+      ]));})),
+      const Divider(height:10),
+      Row(children:[const Expanded(child:Text('الإجمالي',style:TextStyle(fontWeight:FontWeight.bold))),Text(_money(_posTotal),style:const TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:BatiProTheme.ink))]),
+      const SizedBox(height:6),
+      DropdownButtonFormField<String>(value:_posPayment,isExpanded:true,decoration:const InputDecoration(isDense:true,labelText:'طريقة الدفع'),items:const[
+        DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب')),
+      ],onChanged:(v)=>setState((){_posPayment=v??'نقداً';if(_posPayment=='نقداً')_posPaid.text=(_posTotal/100).toStringAsFixed(2);if(_posPayment=='على الحساب')_posPaid.text='0';})),
+      const SizedBox(height:5),
+      TextField(controller:_posPaid,keyboardType:const TextInputType.numberWithOptions(decimal:true),onChanged:(_)=>setState((){}),decoration:const InputDecoration(isDense:true,labelText:'المدفوع بالدينار (دج)')),
+      Align(alignment:Alignment.centerLeft,child:Text('المتبقي: ${_money((_posTotal-_posPaidAmount).clamp(0,double.infinity).toDouble())}',style:const TextStyle(color:Colors.redAccent,fontSize:11,fontWeight:FontWeight.bold))),
+      const SizedBox(height:7),
+      SizedBox(height:43,child:FilledButton.icon(onPressed:_posSave,icon:const Icon(Icons.check_circle),label:const Text('تأكيد البيع وحفظ الفاتورة'))),
+    ]));
+    return SafeArea(child:loading?const Center(child:CircularProgressIndicator()):Column(children:[
+      Container(width:double.infinity,padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),decoration:const BoxDecoration(gradient:LinearGradient(colors:[Color(0xFF173B68),Color(0xFF245A9A)])),child:Row(children:[
+        const Icon(Icons.point_of_sale,color:BatiProTheme.gold),const SizedBox(width:9),const Expanded(child:Text('نقطة البيع',style:TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:16))),Text('${widget.sellerName??''}',style:const TextStyle(color:Colors.white,fontSize:11)),
+      ])),
+      Expanded(child:compact?Column(children:[Expanded(flex:5,child:catalog),const Divider(height:1),Expanded(flex:5,child:cartPanel)]):Row(children:[Expanded(flex:6,child:catalog),const VerticalDivider(width:1),Expanded(flex:5,child:cartPanel)])),
+    ]));
+  }
 
   Future<void> _newSale() async {
     if(products.isEmpty){_toast('أضف منتجات إلى المخزون أولاً.');return;}
@@ -419,6 +546,7 @@ $text | Out-Printer -Name $name
   }
   Widget _detail(String a,String b,[Color? color])=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[Expanded(child:Text(a,style:const TextStyle(color:BatiProTheme.muted,fontSize:12))),Text(b,style:TextStyle(fontWeight:FontWeight.bold,color:color??BatiProTheme.ink))]));
   @override Widget build(BuildContext context){
+    if (widget.sellerName != null) return _sellerPosLayout();
     final total=invoices.fold<double>(0,(s,e)=>s+e.total),paid=invoices.fold<double>(0,(s,e)=>s+e.paid),debt=invoices.fold<double>(0,(s,e)=>s+e.due);
     return SafeArea(child:loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c){
       final compact=c.maxWidth<650;
