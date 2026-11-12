@@ -1157,7 +1157,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         savedCurrency.contains('الدينار الجزائري');
     _currency.text = isDefaultCurrency
         ? AppLanguage.text('DZD - السنتيم الجزائري', 'DZD - centime algérien')
-        : savedCurrency;
+        : savedCurrency!;
     await ApiClient.instance.initialize();
     _serverUrl.text = ApiClient.instance.baseUrl ?? '';
     if (ApiClient.instance.isAuthenticated) {
