@@ -308,7 +308,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
                   onChanged: _busy ? null : (v) => setState(() => _selectedPort = v),
                 )),
                 IconButton(onPressed: _busy ? null : _refreshDevices,
-                    tooltip: 'تحديث المنافذ', icon: const Icon(Icons.refresh)),
+                    tooltip: AppLanguage.translate('تحديث المنافذ'), icon: const Icon(Icons.refresh)),
               ]),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
