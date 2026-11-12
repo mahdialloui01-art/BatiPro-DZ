@@ -683,7 +683,7 @@ class _SectionScreenState extends State<SectionScreen> {
         _money((e['total'] as num?)?.toDouble() ?? 0),
         status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)} • المتبقي: ${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
         action: IconButton(
-          tooltip: 'تسجيل دفعة للمورد',
+          tooltip: AppLanguage.translate('تسجيل دفعة للمورد'),
           onPressed: () => _collectSupplierPayment(e),
           icon: const Icon(Icons.payments_outlined, size: 19, color: BatiProTheme.green),
         ),
