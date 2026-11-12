@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Text;
 import '../app/localized_text.dart';
 import '../data/app_storage.dart';
 import '../app/app_theme.dart';
+import '../app/app_language.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
 
@@ -94,7 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  String _money(double value) => '${value.round()} سنتيم';
+  String _money(double value) => AppLanguage.translate('${value.round()} سنتيم');
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +339,7 @@ class _AlertsPanel extends StatelessWidget {
           if (i > 0) const Divider(height: 20, color: BatiProTheme.line),
           _alert(
             (items[i]['name'] ?? 'منتج').toString(),
-            '${items[i]['quantity'] ?? 0} ${items[i]['unit'] ?? ''} متبقية',
+            AppLanguage.translate('${items[i]['quantity'] ?? 0} ${items[i]['unit'] ?? ''} متبقية'),
             BatiProTheme.red,
           ),
         ],
