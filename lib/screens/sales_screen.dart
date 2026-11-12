@@ -218,7 +218,11 @@ class _SalesScreenState extends State<SalesScreen> {
       const SizedBox(height:6),
       TextField(controller:_posClient,decoration:const InputDecoration(isDense:true,labelText:'اسم الزبون (اختياري)',prefixIcon:Icon(Icons.person_outline,size:18))),
       Expanded(child:_posCart.isEmpty?const Center(child:Text('اضغط على أي مادة لإضافتها مباشرةً',style:TextStyle(color:BatiProTheme.muted,fontSize:12))):ListView.separated(itemCount:_posCart.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(context,i){final line=_posCart[i];return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[
-        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(line.product.name,translate:false,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11,fontWeight:FontWeight.w800)),Text(_money(line.total),style:const TextStyle(fontSize:10,color:BatiProTheme.muted))])),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(line.product.name,translate:false,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11,fontWeight:FontWeight.w800)),
+          Text('${line.quantity} ${line.saleUnit} × ${_money(line.price)}',style:const TextStyle(fontSize:9,color:BatiProTheme.muted)),
+          Text(_money(line.total),style:const TextStyle(fontSize:10,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
+        ])),
         IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,-1),icon:const Icon(Icons.remove_circle_outline,size:19)),
         Text(line.quantity.toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
         IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,1),icon:const Icon(Icons.add_circle_outline,size:19)),
