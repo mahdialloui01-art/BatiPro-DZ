@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Text;
 import '../app/localized_text.dart';
 import '../data/app_storage.dart';
 import '../app/app_theme.dart';
+import '../app/app_language.dart';
 
 class _Product {
   final String id, name, category, unit;
@@ -121,7 +122,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       child: TextFormField(
         controller: controller,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        decoration: InputDecoration(labelText: label, helperText: helper),
+        decoration: InputDecoration(labelText: AppLanguage.translate(label), helperText: helper),
         validator: (value) {
           if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
           if (numeric) {
@@ -220,7 +221,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                 child: DropdownButtonFormField<String>(
                   value: _categories.contains(_category) ? _category : 'مواد البناء',
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'الصنف / نوع الحديد'),
+                  decoration: InputDecoration(labelText: AppLanguage.translate('الصنف / نوع الحديد')),
                   items: _categories.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                   onChanged: (v) => setState(() => _category = v ?? 'مواد البناء'),
                 ),
@@ -231,7 +232,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                   const SizedBox(width: 8),
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _weightUnit,
-                    decoration: const InputDecoration(labelText: 'الوحدة'),
+                    decoration: InputDecoration(labelText: AppLanguage.translate('الوحدة')),
                     items: const [
                       DropdownMenuItem(value: 'kg', child: Text('كيلوغرام')),
                       DropdownMenuItem(value: 'ton', child: Text('طن')),
@@ -246,9 +247,9 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                       value: const ['8', '10', '12', '14', '16', '20', '25', '32'].contains(_diameter.text)
                           ? _diameter.text : '12',
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'مقاس حديد التسليح',
-                        helperText: 'اختر T8 أو T10 أو T12 أو T14 أو T16 أو T20 أو T25 أو T32',
+                      decoration: InputDecoration(
+                        labelText: AppLanguage.translate('مقاس حديد التسليح'),
+                        helperText: AppLanguage.translate('اختر T8 أو T10 أو T12 أو T14 أو T16 أو T20 أو T25 أو T32'),
                       ),
                       items: const [
                         DropdownMenuItem(value: '8', child: Text('T8 — قطر 8 ملم')),
@@ -345,7 +346,7 @@ class _StockCountDialogState extends State<_StockCountDialog> {
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: 'الكمية الفعلية بعد العد',
+                labelText: AppLanguage.translate('الكمية الفعلية بعد العد'),
                 suffixText: widget.product.unit,
               ),
               validator: (value) {
@@ -359,9 +360,9 @@ class _StockCountDialogState extends State<_StockCountDialog> {
             const SizedBox(height: 10),
             TextFormField(
               controller: _reason,
-              decoration: const InputDecoration(
-                labelText: 'سبب التسوية',
-                hintText: 'مثلاً: جرد دوري، تلف، كسر أو فرق في العد',
+              decoration: InputDecoration(
+                labelText: AppLanguage.translate('سبب التسوية'),
+                hintText: AppLanguage.translate('مثلاً: جرد دوري، تلف، كسر أو فرق في العد'),
               ),
               validator: (value) => value == null || value.trim().isEmpty
                   ? 'اكتب سبب التسوية'
@@ -718,7 +719,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ]),
         ],
         const SizedBox(height:16),
-        TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(hintText:'ابحث عن منتج أو صنف...',prefixIcon:Icon(Icons.search))),
+        TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:InputDecoration(hintText: AppLanguage.translate('ابحث عن منتج أو صنف...'),prefixIcon:Icon(Icons.search))),
         const SizedBox(height:10),
         if (_activeGroup == null)
           Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
