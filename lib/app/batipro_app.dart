@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'localized_text.dart';
 import 'app_theme.dart';
 import 'app_language.dart';
 import '../screens/dashboard_screen.dart';
