@@ -673,3 +673,4 @@ class _SaleEditorState extends State<_SaleEditor>{
       ),
     );
   }
+}
