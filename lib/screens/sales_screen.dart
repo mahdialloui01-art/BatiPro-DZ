@@ -164,26 +164,26 @@ class _SalesScreenState extends State<SalesScreen> {
     }
     final buffer = StringBuffer()
       ..writeln('             BATIPRO DZ')
-      ..writeln('             وصل إرجاع')
+      ..writeln('             ${AppLanguage.translate('وصل إرجاع')}')
       ..writeln('--------------------------------')
-      ..writeln('رقم الوصل: ${returnId}')
-      ..writeln('رقم الفاتورة: ${invoice.id}')
-      ..writeln('الزبون: ${invoice.client}')
-      ..writeln('التاريخ: ${_date(date)}')
+      ..writeln(AppLanguage.translate('رقم الوصل: ${returnId}'))
+      ..writeln(AppLanguage.translate('رقم الفاتورة: ${invoice.id}'))
+      ..writeln(AppLanguage.translate('الزبون: ${invoice.client}'))
+      ..writeln(AppLanguage.translate('التاريخ: ${_date(date)}'))
       ..writeln('--------------------------------')
-      ..writeln('السلعة')
+      ..writeln(AppLanguage.translate('السلعة'))
       ..writeln('--------------------------------');
     for (final line in lines) {
-      buffer.writeln('${line['productName']}');
+      buffer.writeln(AppLanguage.translate('${line['productName']}'));
       buffer.writeln('  ${line['quantity']} ${line['unit']}    ${_money((line['amount'] as num).toDouble())}');
     }
     buffer
       ..writeln('--------------------------------')
-      ..writeln('قيمة الإرجاع: ${_money(amount)}')
-      ..writeln('طريقة التسوية: ${mode == 'cash' ? 'رد نقدي' : 'تخفيض الدين'}')
-      ..writeln('الفاتورة الأصلية: ${invoice.id}')
+      ..writeln(AppLanguage.translate('قيمة الإرجاع: ${_money(amount)}'))
+      ..writeln(AppLanguage.translate('طريقة التسوية: ${mode == 'cash' ? 'رد نقدي' : 'تخفيض الدين'}'))
+      ..writeln(AppLanguage.translate('الفاتورة الأصلية: ${invoice.id}'))
       ..writeln('--------------------------------')
-      ..writeln('       شكراً لتعاملكم معنا')
+      ..writeln('       ${AppLanguage.translate('شكراً لتعاملكم معنا')}')
       ..writeln('\n\n\n');
     final encodedText = base64Encode(utf8.encode(buffer.toString()));
     final encodedPrinter = base64Encode(utf8.encode(printer));
