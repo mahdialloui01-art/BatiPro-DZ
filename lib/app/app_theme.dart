@@ -26,7 +26,7 @@ class BatiProTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: canvas,
       fontFamily: 'Arial',
-      visualDensity: VisualDensity.standard,
+      visualDensity: VisualDensity.compact,
       appBarTheme: const AppBarTheme(
         backgroundColor: canvas,
         foregroundColor: ink,
@@ -50,7 +50,7 @@ class BatiProTheme {
           backgroundColor: ink,
           foregroundColor: Colors.white,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
         ),
@@ -59,7 +59,7 @@ class BatiProTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: ink,
           side: const BorderSide(color: line),
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         ),
@@ -73,7 +73,7 @@ class BatiProTheme {
         helperStyle: const TextStyle(color: muted, fontSize: 10.5, height: 1.35),
         errorStyle: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
         prefixIconColor: muted,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
           borderSide: const BorderSide(color: line),
