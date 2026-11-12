@@ -46,15 +46,15 @@ class _SaleLine {
   Map<String,dynamic> toJson()=>{'productId':product.id,'name':product.name,'unit':product.unit,'quantity':baseQuantity,'displayQuantity':quantity,'displayUnit':saleUnit,'price':price,'total':total};
 }
 class _SaleInvoice {
-  final String id,client,method;
+  final String id,client,method,seller;
   final DateTime date;
   final double total,paid;
   final List<Map<String,dynamic>> items;
-  const _SaleInvoice(this.id,this.client,this.method,this.date,this.total,this.paid,this.items);
+  const _SaleInvoice(this.id,this.client,this.method,this.date,this.total,this.paid,this.items,{this.seller=''});
   double get due=>total-paid;
   String get status=>due<=0?'مدفوعة':paid>0?'دفع جزئي':'على الحساب';
-  factory _SaleInvoice.fromJson(Map<String,dynamic> j)=>_SaleInvoice(j['id'],j['client'],j['method'],DateTime.parse(j['date']),(j['total'] as num).toDouble(),(j['paid'] as num).toDouble(),(j['items'] as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList());
-  Map<String,dynamic> toJson()=>{'id':id,'client':client,'method':method,'date':date.toIso8601String(),'total':total,'paid':paid,'items':items};
+  factory _SaleInvoice.fromJson(Map<String,dynamic> j)=>_SaleInvoice(j['id'],j['client'],j['method'],DateTime.parse(j['date']),(j['total'] as num).toDouble(),(j['paid'] as num).toDouble(),(j['items'] as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList(),seller:j['seller']?.toString() ?? '');
+  Map<String,dynamic> toJson()=>{'id':id,'client':client,'method':method,'seller':seller,'date':date.toIso8601String(),'total':total,'paid':paid,'items':items};
 }
 
 class SalesScreen extends StatefulWidget {
@@ -96,7 +96,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _newSale() async {
     if(products.isEmpty){_toast('أضف منتجات إلى المخزون أولاً.');return;}
-    final invoice=await showDialog<_SaleInvoice>(context:context,barrierDismissible:false,builder:(_)=>_SaleEditor(products:List.of(products)));
+    final invoice=await showDialog<_SaleInvoice>(context:context,barrierDismissible:false,builder:(_)=>_SaleEditor(products:List.of(products), sellerName: widget.sellerName));
     if(invoice==null||!mounted)return;
     final prefs = await AppStorage.getInstance();
     final movementRaw = prefs.getString('batipro_stock_movements_v1');
@@ -387,7 +387,7 @@ $text | Out-Printer -Name $name
     final index = invoices.indexWhere((e)=>e.id==invoice.id);
     if (index < 0) return;
     final current = invoices[index];
-    final updated = _SaleInvoice(current.id,current.client,current.method,current.date,current.total,(current.paid+amount).clamp(0,current.total).toDouble(),current.items);
+    final updated = _SaleInvoice(current.id,current.client,current.method,current.date,current.total,(current.paid+amount).clamp(0,current.total).toDouble(),current.items,seller: current.seller);
     setState(()=>invoices[index]=updated);
     await _persist();
     var drawerMessage = '';
@@ -581,7 +581,7 @@ class _SaleEditorState extends State<_SaleEditor>{
     if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أضف منتجاً إلى الفاتورة.')));return;}
     if(_paid>_total){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('المدفوع أكبر من إجمالي الفاتورة.')));return;}
     if(method=='نقداً'&&_paid<_total){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الدفع نقداً يتطلب دفع كامل المبلغ.')));return;}
-    Navigator.pop(context,_SaleInvoice('INV-'+DateTime.now().millisecondsSinceEpoch.toString(),client.text.trim().isEmpty?'زبون نقدي':client.text.trim(),method,DateTime.now(),_total,_paid,cart.map((e)=>e.toJson()).toList()));
+    Navigator.pop(context,_SaleInvoice('INV-'+DateTime.now().millisecondsSinceEpoch.toString(),client.text.trim().isEmpty?'زبون نقدي':client.text.trim(),method,DateTime.now(),_total,_paid,cart.map((e)=>e.toJson()).toList(),seller:widget.sellerName ?? ''));
   }
   @override Widget build(BuildContext context){
     final p=_product;
