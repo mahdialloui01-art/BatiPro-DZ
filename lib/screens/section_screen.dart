@@ -107,13 +107,13 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   String _resolveKind(String title) {
-    if (title.contains('المشتريات') || title.contains('الشراء من المورد') || title.contains('شراء')) return 'purchases';
-    if (title.contains('الزبائن')) return 'customers';
-    if (title.contains('الموردون')) return 'suppliers';
-    if (title.contains('المستودعات')) return 'warehouses';
-    if (title.contains('المصاريف')) return 'expenses';
-    if (title.contains('التقارير')) return 'reports';
-    if (title.contains('الإعدادات')) return 'settings';
+    if (title.contains('المشتريات') || title.contains('الشراء من المورد') || title.contains('شراء') || title.contains('Achats')) return 'purchases';
+    if (title.contains('الزبائن') || title.contains('Clients')) return 'customers';
+    if (title.contains('الموردون') || title.contains('Fournisseurs')) return 'suppliers';
+    if (title.contains('المستودعات') || title.contains('Entrepôts')) return 'warehouses';
+    if (title.contains('المصاريف') || title.contains('Dépenses')) return 'expenses';
+    if (title.contains('التقارير') || title.contains('Rapports')) return 'reports';
+    if (title.contains('الإعدادات') || title.contains('Paramètres')) return 'settings';
     return 'general';
   }
 
@@ -550,7 +550,7 @@ class _SectionScreenState extends State<SectionScreen> {
   Widget _searchBox(String hint) => TextField(
     controller: _search,
     onChanged: (_) => setState(() {}),
-    decoration: InputDecoration(hintText: hint, prefixIcon: const Icon(Icons.search_rounded)),
+    decoration: InputDecoration(hintText: AppLanguage.translate(hint), prefixIcon: const Icon(Icons.search_rounded)),
   );
 
   Widget _empty() => Card(child: Padding(
@@ -1035,9 +1035,9 @@ class _EntryEditorState extends State<_EntryEditor> {
                             ? _controllers[field.key]!.text : field.options.first,
                         isExpanded: true,
                         decoration: InputDecoration(
-                          labelText: field.key == 'unitPrice' && widget.isPurchase
+                          labelText: AppLanguage.translate(field.key == 'unitPrice' && widget.isPurchase
                               ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (سنتيم)'
-                              : field.label,
+                              : field.label),
                         ),
                         items: field.options.map((option) => DropdownMenuItem<String>(
                           value: option, child: Text(option, overflow: TextOverflow.ellipsis),
