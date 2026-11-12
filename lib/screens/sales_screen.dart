@@ -168,13 +168,13 @@ class _SalesScreenState extends State<SalesScreen> {
       ..writeln('--------------------------------')
       ..writeln(AppLanguage.translate('رقم الوصل: ${returnId}'))
       ..writeln(AppLanguage.translate('رقم الفاتورة: ${invoice.id}'))
-      ..writeln(AppLanguage.translate('الزبون: ${invoice.client}'))
+      ..writeln(AppLanguage.translate('الزبون: ') + invoice.client)
       ..writeln(AppLanguage.translate('التاريخ: ${_date(date)}'))
       ..writeln('--------------------------------')
       ..writeln(AppLanguage.translate('السلعة'))
       ..writeln('--------------------------------');
     for (final line in lines) {
-      buffer.writeln(AppLanguage.translate('${line['productName']}'));
+      buffer.writeln('${line['productName']}');
       buffer.writeln('  ${line['quantity']} ${line['unit']}    ${_money((line['amount'] as num).toDouble())}');
     }
     buffer
