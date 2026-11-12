@@ -20,7 +20,7 @@ class AppLanguage {
   static String translate(String value) {
     if (!isFrench || value.isEmpty) return value;
     var result = value;
-    const phrases = <String, String>{
+    final phrases = <String, String>{
       'الأجهزة الطرفية ونقاط البيع (POS)': 'Périphériques et point de vente (POS)',
       'إعداد الطابعة ودرج النقود والأجهزة المتصلة بهذا الكمبيوتر بنظام Windows.': 'Configuration de l’imprimante, du tiroir-caisse et des périphériques connectés à cet ordinateur Windows.',
       'النسخ الاحتياطي واسترجاع البيانات': 'Sauvegarde et restauration des données',
