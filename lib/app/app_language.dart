@@ -368,6 +368,7 @@ class AppLanguage {
       'عدد المستودعات': 'Nombre d’entrepôts',
       'رقم الفاتورة: ': 'N° de facture : ',
       'المبلغ (سنتيم)': 'Montant (centimes)',
+      'المبلغ بالدينار (دج)': 'Montant en dinars (DZD)',
       'T8 — قطر 8 ملم': 'T8 — diamètre 8 mm',
       'حديد تسليح T10': 'Acier d’armature T10',
       'حديد تسليح T12': 'Acier d’armature T12',
