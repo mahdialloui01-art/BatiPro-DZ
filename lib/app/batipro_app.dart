@@ -20,7 +20,7 @@ class BatiProApp extends StatelessWidget {
         valueListenable: AppLanguage.current,
         builder: (context, language, child) => Directionality(
           textDirection: language == 'fr' ? TextDirection.ltr : TextDirection.rtl,
-          child: const AppShell(),
+          child: AppShell(),
         ),
       ),
     );
