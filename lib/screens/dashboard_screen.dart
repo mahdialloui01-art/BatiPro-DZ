@@ -1,7 +1,9 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../data/app_storage.dart';
 import '../app/app_theme.dart';
+import '../app/app_language.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
 
@@ -93,8 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  String _money(double value) =>
-      '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => AppLanguage.translate('${value.round()} سنتيم');
 
   @override
   Widget build(BuildContext context) {
@@ -106,20 +107,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return SingleChildScrollView(
                 padding: EdgeInsets.all(compact ? 16 : 28),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('مرحباً بك 👋', style: TextStyle(color: BatiProTheme.muted, fontSize: 12)),
-                      SizedBox(height: 4),
-                      Text('ملخص تجارتك اليوم', style: TextStyle(color: BatiProTheme.ink, fontSize: 23, fontWeight: FontWeight.w800)),
-                    ])),
-                    Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: BatiProTheme.line)),
-                      child: const Icon(Icons.notifications_none_rounded, color: BatiProTheme.ink),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(compact ? 18 : 24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topRight, end: Alignment.bottomLeft,
+                        colors: [Color(0xFF173447), Color(0xFF31566A)],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [BoxShadow(color: BatiProTheme.ink.withValues(alpha: .12), blurRadius: 22, offset: const Offset(0, 9))],
                     ),
-                    const SizedBox(width: 9),
-                    const CircleAvatar(backgroundColor: BatiProTheme.ink, child: Text('م', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                  ]),
+                    child: Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFF63D2A5), shape: BoxShape.circle)),
+                          const SizedBox(width: 7),
+                          const Text('نظام إدارة مواد البناء', style: TextStyle(color: Color(0xFFD5E2E9), fontSize: 10, fontWeight: FontWeight.w600)),
+                        ]),
+                        const SizedBox(height: 12),
+                        const Text('مرحباً بك في BatiPro 👋', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 6),
+                        const Text('كل عمليات محلك ومخزونك في نظرة واحدة', style: TextStyle(color: Color(0xFFD5E2E9), fontSize: 11)),
+                      ])),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: compact ? 54 : 68, height: compact ? 54 : 68,
+                        decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(19)),
+                        child: Icon(Icons.foundation_rounded, color: BatiProTheme.ink, size: compact ? 29 : 36),
+                      ),
+                    ]),
+                  ),
                   const SizedBox(height: 25),
                   const SectionHeader(title: 'لوحة القيادة', subtitle: 'نظرة عامة من عملياتك المسجلة'),
                   const SizedBox(height: 17),
@@ -127,9 +145,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisCount: compact ? 2 : (constraints.maxWidth > 1150 ? 4 : 2),
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: compact ? 1.22 : 1.45,
+                    crossAxisSpacing: 9,
+                    mainAxisSpacing: 9,
+                    childAspectRatio: compact ? 1.48 : 1.82,
                     children: [
                       StatCard(label: 'مبيعات اليوم', value: _money(_todaySales), note: '$_todayInvoices فاتورة اليوم', icon: Icons.trending_up_rounded, color: BatiProTheme.green),
                       StatCard(label: 'المشتريات المسجلة', value: _money(_purchasesTotal), note: '$_purchaseCount عملية شراء', icon: Icons.shopping_bag_outlined, color: BatiProTheme.blue),
@@ -187,7 +205,9 @@ class _SalesPanelState extends State<_SalesPanel> {
         add(hour.toString().padLeft(2, '0'), DateTime(now.year, now.month, now.day, hour), DateTime(now.year, now.month, now.day, hour + 3));
       }
     } else if (_period == 'الأسبوع') {
-      const days = ['اثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت', 'أحد'];
+      final days = AppLanguage.isFrench
+          ? ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+          : ['اثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت', 'أحد'];
       final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
       for (var i = 0; i < 7; i++) {
         final start = monday.add(Duration(days: i));
@@ -200,14 +220,16 @@ class _SalesPanelState extends State<_SalesPanel> {
         add('$i', start, start.add(const Duration(days: 1)), showLabel: i == 1 || i % 5 == 0 || i == days);
       }
     } else {
-      const months = ['جان', 'فيف', 'مار', 'أفر', 'ماي', 'جوان', 'جويل', 'أوت', 'سبت', 'أكت', 'نوف', 'ديس'];
+      final months = AppLanguage.isFrench
+          ? ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+          : ['جان', 'فيف', 'مار', 'أفر', 'ماي', 'جوان', 'جويل', 'أوت', 'سبت', 'أكت', 'نوف', 'ديس'];
       for (var month = 1; month <= 12; month++) {
         add(months[month - 1], DateTime(now.year, month, 1), DateTime(now.year, month + 1, 1));
       }
     }
     return result;
   }
-  String _money(double value) => '\${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => '${value.round()} سنتيم';
   @override
   Widget build(BuildContext context) {
     final buckets = _buckets(DateTime.now());
@@ -291,7 +313,7 @@ class _SalesBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final barHeight = maxAmount <= 0 ? 4.0 : (amount / maxAmount * 91).clamp(4.0, 91.0).toDouble();
     return Tooltip(
-      message: '$label • \${amount.toStringAsFixed(0)} دج',
+      message: '$label • \${amount.toStringAsFixed(0)} سنتيم',
       child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
         SizedBox(height: 99, child: Align(alignment: Alignment.bottomCenter, child: Container(
           width: compactLabel ? 10 : 19, height: barHeight,
@@ -321,7 +343,7 @@ class _AlertsPanel extends StatelessWidget {
           if (i > 0) const Divider(height: 20, color: BatiProTheme.line),
           _alert(
             (items[i]['name'] ?? 'منتج').toString(),
-            '${items[i]['quantity'] ?? 0} ${items[i]['unit'] ?? ''} متبقية',
+            AppLanguage.translate('${items[i]['quantity'] ?? 0} ${items[i]['unit'] ?? ''} متبقية'),
             BatiProTheme.red,
           ),
         ],
@@ -357,7 +379,7 @@ class _RecentSales extends StatelessWidget {
           _SaleRow(
             code: (items[i]['id'] ?? '').toString(),
             client: (items[i]['client'] ?? 'زبون نقدي').toString(),
-            amount: '${((items[i]['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} دج',
+            amount: '${((items[i]['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} سنتيم',
             status: (((items[i]['total'] as num?)?.toDouble() ?? 0) - ((items[i]['paid'] as num?)?.toDouble() ?? 0)) <= 0
                 ? 'مدفوعة'
                 : ((items[i]['paid'] as num?)?.toDouble() ?? 0) > 0 ? 'جزئية' : 'على الحساب',

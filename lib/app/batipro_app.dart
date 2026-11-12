@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'localized_text.dart';
 import 'app_theme.dart';
+import 'app_language.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/inventory_screen.dart';
@@ -10,13 +13,23 @@ class BatiProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BatiPro DZ',
-      debugShowCheckedModeBanner: false,
-      theme: BatiProTheme.light,
-      home: const Directionality(
-        textDirection: TextDirection.rtl,
-        child: AppShell(),
+    return ValueListenableBuilder<String>(
+      valueListenable: AppLanguage.current,
+      builder: (context, language, child) => MaterialApp(
+        title: 'BatiPro DZ',
+        debugShowCheckedModeBanner: false,
+        theme: BatiProTheme.light,
+        locale: Locale(language),
+        supportedLocales: const [Locale('ar'), Locale('fr')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Directionality(
+          textDirection: language == 'fr' ? TextDirection.ltr : TextDirection.rtl,
+          child: AppShell(),
+        ),
       ),
     );
   }
@@ -32,17 +45,17 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int selected = 0;
 
-  static const sections = [
-    _NavItem('لوحة القيادة', Icons.grid_view_rounded),
-    _NavItem('المنتجات والمخزون', Icons.inventory_2_outlined),
-    _NavItem('المبيعات والفواتير', Icons.point_of_sale_rounded),
-    _NavItem('الشراء من المورد', Icons.shopping_cart_checkout_rounded),
-    _NavItem('الزبائن', Icons.groups_2_outlined),
-    _NavItem('الموردون', Icons.local_shipping_outlined),
-    _NavItem('المستودعات', Icons.warehouse_outlined),
-    _NavItem('المصاريف', Icons.receipt_long_outlined),
-    _NavItem('التقارير', Icons.bar_chart_rounded),
-    _NavItem('الإعدادات', Icons.settings_outlined),
+  static List<_NavItem> get sections => [
+    _NavItem(AppLanguage.isFrench ? 'Tableau de bord' : 'لوحة القيادة', Icons.grid_view_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Produits et stock' : 'المنتجات والمخزون', Icons.inventory_2_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Ventes et factures' : 'المبيعات والفواتير', Icons.point_of_sale_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Achats fournisseurs' : 'الشراء من المورد', Icons.shopping_cart_checkout_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Clients' : 'الزبائن', Icons.groups_2_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Fournisseurs' : 'الموردون', Icons.local_shipping_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Entrepôts' : 'المستودعات', Icons.warehouse_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Dépenses' : 'المصاريف', Icons.receipt_long_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Rapports' : 'التقارير', Icons.bar_chart_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Paramètres' : 'الإعدادات', Icons.settings_outlined),
   ];
 
   Widget _page() {
@@ -87,12 +100,12 @@ class _AppShellState extends State<AppShell> {
               setState(() => selected = i);
             }
           },
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
-            NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'المخزون'),
-            NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: 'المبيعات'),
-            NavigationDestination(icon: Icon(Icons.shopping_cart_checkout_rounded), label: 'المشتريات'),
-            NavigationDestination(icon: Icon(Icons.menu_rounded), label: 'المزيد'),
+          destinations: [
+            NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: AppLanguage.isFrench ? 'Accueil' : 'الرئيسية'),
+            NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: AppLanguage.isFrench ? 'Stock' : 'المخزون'),
+            NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: AppLanguage.isFrench ? 'Ventes' : 'المبيعات'),
+            NavigationDestination(icon: Icon(Icons.shopping_cart_checkout_rounded), label: AppLanguage.isFrench ? 'Achats' : 'المشتريات'),
+            NavigationDestination(icon: Icon(Icons.menu_rounded), label: AppLanguage.isFrench ? 'Plus' : 'المزيد'),
           ],
         ),
       );
@@ -115,31 +128,33 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 258,
-      color: BatiProTheme.ink,
+      width: 270,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF142B3B), Color(0xFF203F53)]),
+      ),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 26),
+              padding: const EdgeInsets.fromLTRB(22, 25, 22, 28),
               child: Row(children: [
                 Container(
-                  width: 43, height: 43,
-                  decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(13)),
+                  width: 47, height: 47,
+                  decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: BatiProTheme.gold.withValues(alpha: .18), blurRadius: 18, offset: Offset(0, 6))]),
                   child: const Icon(Icons.construction_rounded, color: BatiProTheme.ink, size: 27),
                 ),
                 const SizedBox(width: 12),
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('BatiPro DZ', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('BatiPro DZ', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                   SizedBox(height: 3),
-                  Text('GESTION • BÂTIMENT', style: TextStyle(color: Color(0xFFB8C6D0), fontSize: 9, letterSpacing: 1.2)),
-                ]),
+                  Text('GESTION • BÂTIMENT', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Color(0xFFB8C6D0), fontSize: 9, letterSpacing: 1.2)),
+                ])),
               ]),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(22, 0, 22, 10),
-              child: Text('القائمة الرئيسية', style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+              child: Text(AppLanguage.text('القائمة الرئيسية', 'MENU PRINCIPAL'), style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
             ),
             Expanded(
               child: ListView.builder(
@@ -154,16 +169,16 @@ class _Sidebar extends StatelessWidget {
                       onTap: () => onSelect(i),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                         decoration: BoxDecoration(
-                          color: active ? const Color(0xFF2A4659) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          border: active ? const Border(right: BorderSide(color: BatiProTheme.gold, width: 3)) : null,
+                          color: active ? const Color(0xFF34566A) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(13),
+                          border: active ? Border.all(color: BatiProTheme.gold.withValues(alpha: .24)) : null,
                         ),
                         child: Row(children: [
                           Icon(items[i].icon, size: 19, color: active ? BatiProTheme.gold : const Color(0xFFB8C6D0)),
                           const SizedBox(width: 12),
-                          Expanded(child: Text(items[i].label, style: TextStyle(color: active ? Colors.white : const Color(0xFFD0DAE1), fontSize: 12.5, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
+                          Expanded(child: Text(items[i].label, style: TextStyle(color: active ? Colors.white : const Color(0xFFD0DAE1), fontSize: 12.5, letterSpacing: .1, fontWeight: active ? FontWeight.w800 : FontWeight.w500))),
                         ]),
                       ),
                     ),
@@ -172,13 +187,13 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
             Container(
-              margin: const EdgeInsets.all(14),
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(14)),
-              child: const Row(children: [
-                Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
+              margin: const EdgeInsets.all(15),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white.withValues(alpha: .08))),
+              child: Row(children: [
+                const Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
                 SizedBox(width: 9),
-                Expanded(child: Text('وضع العمل دون إنترنت', style: TextStyle(color: Colors.white, fontSize: 11))),
+                Expanded(child: Text(AppLanguage.text('وضع العمل دون إنترنت', 'Mode hors ligne'), style: TextStyle(color: Colors.white, fontSize: 11))),
                 Icon(Icons.circle, color: Color(0xFF48B58B), size: 8),
               ]),
             ),
@@ -198,9 +213,9 @@ class _MoreSectionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final groups = <({String title, String subtitle, List<int> indexes})>[
-      (title: 'البيع والشراء', subtitle: 'فواتير البيع وشراء السلع من الموردين', indexes: [3, 7]),
-      (title: 'العلاقات التجارية', subtitle: 'إدارة الأشخاص المتعاملين معك', indexes: [4, 5]),
-      (title: 'التنظيم والتحليل', subtitle: 'رتّب العمل وراقب النتائج', indexes: [6, 8, 9]),
+      (title: AppLanguage.text('البيع والشراء', 'Ventes et achats'), subtitle: AppLanguage.text('فواتير البيع وشراء السلع من الموردين', 'Factures de vente et achats auprès des fournisseurs'), indexes: [3, 7]),
+      (title: AppLanguage.text('العلاقات التجارية', 'Relations commerciales'), subtitle: AppLanguage.text('إدارة الأشخاص المتعاملين معك', 'Gestion des clients et fournisseurs'), indexes: [4, 5]),
+      (title: AppLanguage.text('التنظيم والتحليل', 'Organisation et analyse'), subtitle: AppLanguage.text('رتّب العمل وراقب النتائج', 'Organisez votre activité et suivez les résultats'), indexes: [6, 8, 9]),
     ];
     return SafeArea(
       child: Container(
@@ -225,12 +240,12 @@ class _MoreSectionsSheet extends StatelessWidget {
                         child: const Icon(Icons.apps_rounded, color: BatiProTheme.gold, size: 25),
                       ),
                       const SizedBox(width: 13),
-                      const Expanded(child: Column(
+                      Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('المزيد من BatiPro', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+                          Text(AppLanguage.text('المزيد من BatiPro', 'Plus de BatiPro'), style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
                           SizedBox(height: 4),
-                          Text('جميع أدوات إدارة محل مواد البناء', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+                          Text(AppLanguage.text('جميع أدوات إدارة محل مواد البناء', 'Tous les outils de gestion du magasin de matériaux'), style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
                         ],
                       )),
                       IconButton(
@@ -278,7 +293,7 @@ class _MoreSectionsSheet extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 13),
                                 Expanded(child: Text(items[index].label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BatiProTheme.ink))),
-                                const Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
+                                Icon(AppLanguage.isFrench ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
                               ]),
                             ),
                           ),
@@ -292,10 +307,10 @@ class _MoreSectionsSheet extends StatelessWidget {
                       color: BatiProTheme.ink,
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: const Row(children: [
-                      Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
+                    child: Row(children: [
+                      const Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
                       SizedBox(width: 10),
-                      Expanded(child: Text('تقدر تخدم على بياناتك حتى بدون إنترنت', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
+                      Expanded(child: Text(AppLanguage.text('تقدر تخدم على بياناتك حتى بدون إنترنت', 'Travaillez sur vos données même sans connexion Internet'), style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       Icon(Icons.check_circle_rounded, color: Color(0xFF58C99B), size: 16),
                     ]),
                   ),

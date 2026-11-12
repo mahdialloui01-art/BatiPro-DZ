@@ -1,7 +1,16 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
+import '../app/app_language.dart';
 import '../data/app_storage.dart';
+import '../data/backup_service.dart';
+import '../data/api_client.dart';
+import '../data/initial_sync_service.dart';
+import '../data/cloud_sync_service.dart';
 import '../app/app_theme.dart';
+import '../widgets/pos_peripherals_panel.dart';
 
 class _FieldSpec {
   final String key, label;
@@ -40,8 +49,8 @@ class _SectionScreenState extends State<SectionScreen> {
           _FieldSpec('diameterMm', 'مقاس حديد التسليح', number: true, optional: true, options: ['8', '10', '12', '14', '16', '20', '25', '32']),
           _FieldSpec('lengthM', 'طول القطعة بالمتر (افتراضي 12)', number: true, optional: true),
           _FieldSpec('pieceWeightKg', 'وزن القطعة الواحدة بالكغ (للأنابيب والمقاطع والصفائح وغيرها)', number: true, optional: true),
-          _FieldSpec('unitPrice', 'سعر وحدة الشراء (دج)', number: true),
-          _FieldSpec('paid', 'المبلغ المدفوع (دج)', number: true),
+          _FieldSpec('unitPrice', 'سعر وحدة الشراء (سنتيم)', number: true),
+          _FieldSpec('paid', 'المبلغ المدفوع (سنتيم)', number: true),
           _FieldSpec('reference', 'رقم وصل الشراء'),
         ];
       case 'customers':
@@ -69,7 +78,7 @@ class _SectionScreenState extends State<SectionScreen> {
         return const [
           _FieldSpec('label', 'بيان المصروف'),
           _FieldSpec('category', 'التصنيف'),
-          _FieldSpec('amount', 'المبلغ (دج)', number: true),
+          _FieldSpec('amount', 'المبلغ (سنتيم)', number: true),
           _FieldSpec('note', 'ملاحظات'),
         ];
       default:
@@ -89,6 +98,21 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant SectionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title) {
+      final nextKind = _resolveKind(widget.title);
+      if (nextKind != _kind) {
+        _kind = nextKind;
+        _storageKey = 'batipro_${_kind}_v1';
+        _items = [];
+        _loading = true;
+        _load();
+      }
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _kind = _resolveKind(widget.title);
@@ -97,13 +121,13 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   String _resolveKind(String title) {
-    if (title.contains('المشتريات') || title.contains('الشراء من المورد') || title.contains('شراء')) return 'purchases';
-    if (title.contains('الزبائن')) return 'customers';
-    if (title.contains('الموردون')) return 'suppliers';
-    if (title.contains('المستودعات')) return 'warehouses';
-    if (title.contains('المصاريف')) return 'expenses';
-    if (title.contains('التقارير')) return 'reports';
-    if (title.contains('الإعدادات')) return 'settings';
+    if (title.contains('المشتريات') || title.contains('الشراء من المورد') || title.contains('شراء') || title.contains('Achats')) return 'purchases';
+    if (title.contains('الزبائن') || title.contains('Clients')) return 'customers';
+    if (title.contains('الموردون') || title.contains('Fournisseurs')) return 'suppliers';
+    if (title.contains('المستودعات') || title.contains('Entrepôts')) return 'warehouses';
+    if (title.contains('المصاريف') || title.contains('Dépenses')) return 'expenses';
+    if (title.contains('التقارير') || title.contains('Rapports')) return 'reports';
+    if (title.contains('الإعدادات') || title.contains('Paramètres')) return 'settings';
     return 'general';
   }
 
@@ -154,8 +178,7 @@ class _SectionScreenState extends State<SectionScreen> {
     await prefs.setString(_storageKey, jsonEncode(_items));
   }
 
-  String _money(double value) =>
-      '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} دج';
+  String _money(double value) => AppLanguage.translate('${value.round()} سنتيم');
 
   double _sum(String key) => _items.fold<double>(
       0, (sum, item) => sum + ((item[key] as num?)?.toDouble() ?? 0));
@@ -180,15 +203,20 @@ class _SectionScreenState extends State<SectionScreen> {
     if (result == null || !mounted) return;
     setState(() => _saving = true);
     try {
+      if (old == null) {
+        result['id'] = DateTime.now().microsecondsSinceEpoch.toString();
+        result['date'] = DateTime.now().toIso8601String();
+      } else {
+        result['id'] = old['id'];
+        result['date'] = old['date'];
+      }
       if (_kind == 'purchases') await _applyPurchaseToStock(result, old: old);
       setState(() {
         if (old == null) {
-          result['id'] = DateTime.now().microsecondsSinceEpoch.toString();
-          result['date'] = DateTime.now().toIso8601String();
           _items.insert(0, result);
         } else {
           final index = _items.indexWhere((e) => e['id'] == old['id']);
-          if (index >= 0) _items[index] = {...result, 'id': old['id'], 'date': old['date']};
+          if (index >= 0) _items[index] = result;
         }
       });
       await _persist();
@@ -330,7 +358,47 @@ class _SectionScreenState extends State<SectionScreen> {
         (purchase['stockUnitPrice'] as num?)?.toDouble() ??
             (purchase['unitPrice'] as num?)?.toDouble() ?? 0,
         source: purchase);
-    await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+
+    final movementRaw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String, dynamic>>[];
+    if (movementRaw != null) {
+      try {
+        movements.addAll((jsonDecode(movementRaw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+      } catch (_) {
+        throw StateError('تعذر قراءة سجل حركات المخزون؛ لم يتم حفظ وصل الشراء.');
+      }
+    }
+    final now = DateTime.now().toIso8601String();
+    if (old != null) {
+      final oldId = (old['id'] ?? 'unknown').toString();
+      movements.insert(0, {
+        'id': '${oldId}-edit-reversal-${now.hashCode}',
+        'date': now,
+        'type': 'purchase_edit_reversal',
+        'referenceId': oldId,
+        'productName': old['product'],
+        'quantityDelta': -((old['quantity'] as num?)?.toDouble() ?? 0),
+        'unit': old['stockUnit'] ?? old['inputUnit'] ?? 'وحدة',
+        'reason': 'عكس وصل شراء عند التعديل',
+      });
+    }
+    final purchaseId = (purchase['id'] ?? now).toString();
+    movements.insert(0, {
+      'id': '${purchaseId}-purchase',
+      'date': now,
+      'type': old == null ? 'purchase' : 'purchase_edit',
+      'referenceId': purchaseId,
+      'productName': purchase['product'],
+      'quantityDelta': (purchase['quantity'] as num?)?.toDouble() ?? 0,
+      'unit': purchase['stockUnit'] ?? purchase['inputUnit'] ?? 'وحدة',
+      'reason': old == null ? 'إضافة وصل شراء' : 'الكمية الجديدة بعد تعديل وصل الشراء',
+    });
+    if (movements.length > 500) movements.removeRange(500, movements.length);
+    await AppStorage.setStrings({
+      'batipro_inventory_v1': jsonEncode(stock),
+      'batipro_stock_movements_v1': jsonEncode(movements),
+    });
   }
 
   Future<void> _delete(Map<String, dynamic> item) async {
@@ -375,7 +443,34 @@ class _SectionScreenState extends State<SectionScreen> {
             return;
           }
           product['quantity'] = (current - purchased).clamp(0, double.infinity);
-          await prefs.setString('batipro_inventory_v1', jsonEncode(stock));
+          final movementRaw = prefs.getString('batipro_stock_movements_v1');
+          final movements = <Map<String, dynamic>>[];
+          if (movementRaw != null) {
+            try {
+              movements.addAll((jsonDecode(movementRaw) as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map)));
+            } catch (_) {
+              _toast('تعذر قراءة سجل الحركات؛ لم يتم حذف وصل الشراء.');
+              return;
+            }
+          }
+          final now = DateTime.now().toIso8601String();
+          final purchaseId = (item['id'] ?? now).toString();
+          movements.insert(0, {
+            'id': '${purchaseId}-delete-reversal-${now.hashCode}',
+            'date': now,
+            'type': 'purchase_delete_reversal',
+            'referenceId': purchaseId,
+            'productName': item['product'],
+            'quantityDelta': -purchased,
+            'unit': item['stockUnit'] ?? item['inputUnit'] ?? product['unit'] ?? 'وحدة',
+            'reason': 'عكس الكمية بعد حذف وصل الشراء',
+          });
+          if (movements.length > 500) movements.removeRange(500, movements.length);
+          await AppStorage.setStrings({
+            'batipro_inventory_v1': jsonEncode(stock),
+            'batipro_stock_movements_v1': jsonEncode(movements),
+          });
         }
       }
     }
@@ -400,23 +495,35 @@ class _SectionScreenState extends State<SectionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('BatiPro DZ', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(compact ? 16 : 21),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft,
+                          colors: [Color(0xFF173447), Color(0xFF31566A)]),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(children: [
+                        Container(width: 43, height: 43,
+                          decoration: BoxDecoration(color: BatiProTheme.gold, borderRadius: BorderRadius.circular(14)),
+                          child: Icon(widget.icon, color: BatiProTheme.ink, size: 22)),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('إدارة محل مواد البناء', style: TextStyle(fontSize: 10, color: Color(0xFFD5E2E9))),
                           const SizedBox(height: 4),
-                          Text(widget.title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
-                        ],
-                      )),
-                      if (_kind != 'reports' && _kind != 'settings')
-                        FilledButton.icon(
-                          onPressed: _saving ? null : () => _openEditor(),
-                          icon: const Icon(Icons.add_rounded),
-                          label: Text(compact ? 'إضافة' : 'إضافة جديد'),
-                        ),
-                    ]),
-                    const SizedBox(height: 20),
+                          Text(widget.title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white)),
+                        ])),
+                        if (_kind != 'reports' && _kind != 'settings')
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: BatiProTheme.gold, foregroundColor: BatiProTheme.ink,
+                              padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 15, vertical: 13)),
+                            onPressed: _saving ? null : () => _openEditor(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(compact ? 'إضافة' : 'إضافة جديد'),
+                          ),
+                      ]),
+                    ),
+                    const SizedBox(height: 13),
                     if (_kind == 'purchases') _buildPurchases(compact),
                     if (_kind == 'customers') _buildContacts(compact, customers: true),
                     if (_kind == 'suppliers') _buildContacts(compact, customers: false),
@@ -457,7 +564,7 @@ class _SectionScreenState extends State<SectionScreen> {
   Widget _searchBox(String hint) => TextField(
     controller: _search,
     onChanged: (_) => setState(() {}),
-    decoration: InputDecoration(hintText: hint, prefixIcon: const Icon(Icons.search_rounded)),
+    decoration: InputDecoration(hintText: AppLanguage.translate(hint), prefixIcon: const Icon(Icons.search_rounded)),
   );
 
   Widget _empty() => Card(child: Padding(
@@ -482,17 +589,17 @@ class _SectionScreenState extends State<SectionScreen> {
             child: Icon(widget.icon, color: BatiProTheme.ink, size: 20)),
           const SizedBox(width: 11),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(headline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
+            Text(headline, translate: false, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+            Text(subtitle, translate: false, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
             if (status != null) Padding(
               padding: const EdgeInsets.only(top: 5),
-              child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor ?? BatiProTheme.green)),
+              child: Text(status, translate: false, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor ?? BatiProTheme.green)),
             ),
           ])),
           const SizedBox(width: 6),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(trailing, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+            Text(trailing, translate: false, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
             if (action != null) action,
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
@@ -528,12 +635,12 @@ class _SectionScreenState extends State<SectionScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: 'المبلغ (دج)', helperText: 'المتبقي: ${_money(due)}'),
+          decoration: InputDecoration(labelText: AppLanguage.translate('المبلغ (سنتيم)'), helperText: AppLanguage.translate('المتبقي: ${_money(due)}')),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton(onPressed: () {
-            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            final value = double.tryParse(controller.text.trim().replaceAll(',', '.'))?.roundToDouble();
             if (value == null || !value.isFinite || value <= 0 || value > due) {
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل مبلغاً صحيحاً لا يتجاوز المتبقي.')));
               return;
@@ -572,11 +679,11 @@ class _SectionScreenState extends State<SectionScreen> {
       const SizedBox(height: 10),
       if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
         e, (e['product'] ?? '').toString(),
-        '${e['supplier'] ?? 'مورد غير محدد'} • كمية: ${e['inputQuantity'] ?? e['quantity'] ?? 0} ${e['inputUnit'] ?? ''} • ${e['pieceCount'] == null ? '' : '≈ ${((e['pieceCount'] as num).toDouble()).toStringAsFixed(1)} قضيب • '} ${e['reference'] ?? 'بدون رقم وصل'}',
+        '${e['supplier'] ?? AppLanguage.translate('مورد غير محدد')} • ${AppLanguage.translate('كمية: ')}${e['inputQuantity'] ?? e['quantity'] ?? 0} ${AppLanguage.translate((e['inputUnit'] ?? '').toString())} • ${e['pieceCount'] == null ? '' : '≈ ${((e['pieceCount'] as num).toDouble()).toStringAsFixed(1)} ${AppLanguage.translate('قضيب')} • '} ${e['reference'] ?? AppLanguage.translate('بدون رقم وصل')}',
         _money((e['total'] as num?)?.toDouble() ?? 0),
-        status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)} • المتبقي: ${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
+        status: '${AppLanguage.translate('المدفوع: ')}${_money((e['paid'] as num?)?.toDouble() ?? 0)} • ${AppLanguage.translate('المتبقي: ')}${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
         action: IconButton(
-          tooltip: 'تسجيل دفعة للمورد',
+          tooltip: AppLanguage.translate('تسجيل دفعة للمورد'),
           onPressed: () => _collectSupplierPayment(e),
           icon: const Icon(Icons.payments_outlined, size: 19, color: BatiProTheme.green),
         ),
@@ -602,7 +709,7 @@ class _SectionScreenState extends State<SectionScreen> {
       const SizedBox(height: 10),
       if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
         e, (e['name'] ?? '').toString(),
-        '${e['phone'] ?? 'بدون هاتف'} • ${e['address'] ?? 'بدون عنوان'}',
+        '${e['phone'] ?? AppLanguage.translate('بدون هاتف')} • ${e['address'] ?? AppLanguage.translate('بدون عنوان')}',
         (e['balance'] as num?) == null ? '—' : _money((e['balance'] as num).toDouble()),
         status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
       )),
@@ -622,7 +729,7 @@ class _SectionScreenState extends State<SectionScreen> {
     const SizedBox(height: 12),
     if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
       e, (e['name'] ?? '').toString(),
-      '${e['location'] ?? 'الموقع غير محدد'} • المسؤول: ${e['manager'] ?? 'غير محدد'}',
+      '${e['location'] ?? AppLanguage.translate('الموقع غير محدد')} • ${AppLanguage.translate('المسؤول: ')}${e['manager'] ?? AppLanguage.translate('غير محدد')}',
       'مستودع',
       status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
     )),
@@ -640,7 +747,7 @@ class _SectionScreenState extends State<SectionScreen> {
     const SizedBox(height: 12),
     if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
       e, (e['label'] ?? '').toString(),
-      '${e['category'] ?? 'عام'} • ${(e['date'] ?? '').toString().split('T').first}',
+      '${e['category'] ?? AppLanguage.translate('عام')} • ${(e['date'] ?? '').toString().split('T').first}',
       _money((e['amount'] as num?)?.toDouble() ?? 0),
       status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
     )),
@@ -670,7 +777,7 @@ class _SectionScreenState extends State<SectionScreen> {
               _metric('المصاريف', _money(expenses), Icons.receipt_long_outlined),
               _metric('المبالغ المحصلة', _money(paidSales), Icons.payments_outlined),
             ], compact),
-            const SizedBox(height: 14),
+            const SizedBox(height: 9),
             Card(child: Padding(
               padding: const EdgeInsets.all(17),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -777,8 +884,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       double.tryParse((_controllers[key]?.text ?? '0').trim().replaceAll(',', '.')) ?? 0;
 
   String _previewMoney(double value) {
-    final digits = value == value.roundToDouble() ? 0 : 2;
-    return '${value.toStringAsFixed(digits)} دج';
+    return '${value.round()} سنتيم';
   }
 
   Widget _purchasePreview() {
@@ -786,7 +892,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     final unitPrice = _numberValue('unitPrice');
     final paid = _numberValue('paid');
     final unit = (_controllers['inputUnit']?.text ?? 'kg').trim().toLowerCase();
-    final total = enteredQuantity * unitPrice;
+    final total = (enteredQuantity * unitPrice).roundToDouble();
     final remaining = (total - paid).clamp(0, double.infinity).toDouble();
     final steelType = (_controllers['steelType']?.text ?? 'مواد عادية').trim();
     final isSteel = steelType != 'مواد عادية';
@@ -857,7 +963,13 @@ class _EntryEditorState extends State<_EntryEditor> {
     final result = <String, dynamic>{};
     for (final field in widget.fields) {
       final value = _controllers[field.key]!.text.trim();
-      result[field.key] = field.number ? (double.tryParse(value.replaceAll(',', '.')) ?? 0) : value;
+      if (field.number) {
+        final parsed = double.tryParse(value.replaceAll(',', '.')) ?? 0;
+        result[field.key] = const {'unitPrice', 'paid', 'amount', 'balance'}.contains(field.key)
+            ? parsed.roundToDouble() : parsed;
+      } else {
+        result[field.key] = value;
+      }
     }
     if (widget.isPurchase) {
       final enteredQuantity = (result['quantity'] as num).toDouble();
@@ -872,7 +984,7 @@ class _EntryEditorState extends State<_EntryEditor> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وحدة الوزن تكون kg أو ton.')));
         return;
       }
-      final total = enteredQuantity * price;
+      final total = (enteredQuantity * price).roundToDouble();
       result['inputQuantity'] = enteredQuantity;
       result['inputUnit'] = unit;
       result['total'] = total;
@@ -912,25 +1024,34 @@ class _EntryEditorState extends State<_EntryEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.initial == null ? 'إضافة إلى ${widget.title}' : 'تعديل السجل'),
+    title: Row(children: [
+      Container(width: 42, height: 42, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(13)), child: Icon(widget.isPurchase ? Icons.local_shipping_outlined : Icons.edit_note_rounded, color: BatiProTheme.ink)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(widget.initial == null ? 'إضافة إلى ${widget.title}' : 'تعديل السجل'),
+        const SizedBox(height: 3),
+        Text(widget.isPurchase ? 'أدخل بيانات المورد والكمية والتكلفة' : 'أدخل المعلومات المطلوبة بدقة', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400)),
+      ])),
+    ]),
     content: SizedBox(
-      width: 430,
+      width: 480,
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 14), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: Row(children: [const Icon(Icons.info_outline_rounded, color: BatiProTheme.blue, size: 18), const SizedBox(width: 9), Expanded(child: Text(widget.isPurchase ? 'الأسعار تُسجّل بالسنتيم الجزائري، وسيظهر ملخص التكلفة قبل الحفظ.' : 'تأكد من صحة البيانات قبل اعتماد السجل.', style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, height: 1.4)))])),
             for (final field in widget.fields)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: field.options.isNotEmpty
                     ? DropdownButtonFormField<String>(
                         value: field.options.contains(_controllers[field.key]!.text)
                             ? _controllers[field.key]!.text : field.options.first,
                         isExpanded: true,
                         decoration: InputDecoration(
-                          labelText: field.key == 'unitPrice' && widget.isPurchase
-                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
-                              : field.label,
+                          labelText: AppLanguage.translate(field.key == 'unitPrice' && widget.isPurchase
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (سنتيم)'
+                              : field.label),
                         ),
                         items: field.options.map((option) => DropdownMenuItem<String>(
                           value: option, child: Text(option, overflow: TextOverflow.ellipsis),
@@ -943,11 +1064,12 @@ class _EntryEditorState extends State<_EntryEditor> {
                         },
                       )
                     : TextFormField(
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),
                         controller: _controllers[field.key],
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
                         decoration: InputDecoration(
                           labelText: field.key == 'unitPrice' && widget.isPurchase
-                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (دج)'
+                              ? 'سعر ${_controllers['inputUnit']?.text ?? 'الوحدة'} (سنتيم)'
                               : field.label,
                           helperText: field.key == 'diameterMm'
                               ? 'أدخل الرقم فقط: 8 لـ T8، 10 لـ T10، 14 لـ T14، 16 لـ T16، أو أي قطر آخر'
@@ -956,11 +1078,11 @@ class _EntryEditorState extends State<_EntryEditor> {
                                   : null,
                         ),
                         validator: (value) {
-                          if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
+                          if ((value == null || value.trim().isEmpty) && !field.optional) return AppLanguage.translate('هذا الحقل مطلوب');
                           if (field.optional && (value == null || value.trim().isEmpty)) return null;
                           if (field.number && (value ?? '').trim().isNotEmpty) {
                             final n = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
-                            if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
+                            if (n == null || !n.isFinite || n < 0) return AppLanguage.translate('أدخل رقماً صحيحاً');
                           }
                           return null;
                         },
@@ -987,10 +1109,20 @@ class _SettingsPanel extends StatefulWidget {
 }
 
 class _SettingsPanelState extends State<_SettingsPanel> {
+  String _language = 'ar';
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _address = TextEditingController();
-  final _currency = TextEditingController(text: 'DZD - الدينار الجزائري');
+  final _currency = TextEditingController(text: 'DZD - السنتيم الجزائري');
+  final _serverUrl = TextEditingController();
+  final _apiEmail = TextEditingController();
+  final _apiPassword = TextEditingController();
+  bool _apiBusy = false;
+  bool _syncBusy = false;
+  bool _backupBusy = false;
+  String _backupStatus = 'النسخ التلقائي اليومي يحتفظ بآخر 7 نسخ على هذا الجهاز.';
+  String _syncStatus = 'لم تتم المزامنة الأولية بعد';
+  String _apiStatus = 'غير مربوط بالخادم';
   bool _loading = true;
 
   @override
@@ -1005,15 +1137,37 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _phone.dispose();
     _address.dispose();
     _currency.dispose();
+    _serverUrl.dispose();
+    _apiEmail.dispose();
+    _apiPassword.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     final prefs = await AppStorage.getInstance();
+    _language = prefs.getString('batipro_language') ?? 'ar';
+    AppLanguage.set(_language);
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
-    _currency.text = prefs.getString('batipro_currency') ?? 'DZD - الدينار الجزائري';
+    final savedCurrency = prefs.getString('batipro_currency');
+    final isDefaultCurrency = savedCurrency == null ||
+        savedCurrency == 'DZD - السنتيم الجزائري' ||
+        savedCurrency == 'DZD - centime algérien' ||
+        savedCurrency.contains('الدينار الجزائري');
+    _currency.text = isDefaultCurrency
+        ? AppLanguage.text('DZD - السنتيم الجزائري', 'DZD - centime algérien')
+        : savedCurrency;
+    await ApiClient.instance.initialize();
+    _serverUrl.text = ApiClient.instance.baseUrl ?? '';
+    if (ApiClient.instance.isAuthenticated) {
+      try {
+        final account = await ApiClient.instance.me();
+        _apiStatus = 'متصل: ${account['organization_name'] ?? account['email'] ?? 'الحساب'}';
+      } catch (_) {
+        _apiStatus = 'انتهت صلاحية الدخول، أعد تسجيل الدخول';
+      }
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -1022,22 +1176,235 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     await prefs.setString('batipro_shop_name', _name.text.trim());
     await prefs.setString('batipro_shop_phone', _phone.text.trim());
     await prefs.setString('batipro_shop_address', _address.text.trim());
-    await prefs.setString('batipro_currency', _currency.text.trim());
+    final currencyValue = _currency.text.trim();
+    await prefs.setString('batipro_currency',
+        currencyValue == 'DZD - centime algérien' || currencyValue == 'DZD - السنتيم الجزائري'
+            ? 'DZD - السنتيم الجزائري'
+            : currencyValue);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ إعدادات المحل.')));
   }
 
+  Future<void> _saveServer() async {
+    try {
+      await ApiClient.instance.setServerUrl(_serverUrl.text);
+      if (mounted) setState(() => _apiStatus = 'تم حفظ عنوان الخادم. سجّل الدخول للمتابعة.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ عنوان API بأمان.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _loginApi() async {
+    if (_apiBusy) return;
+    setState(() => _apiBusy = true);
+    try {
+      await ApiClient.instance.login(email: _apiEmail.text, password: _apiPassword.text);
+      final account = await ApiClient.instance.me();
+      if (mounted) setState(() => _apiStatus =
+          'متصل: ${account['organization_name'] ?? account['email'] ?? 'الحساب'}');
+      await _runCloudSync();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم الاتصال بقاعدة PostgreSQL عبر API بنجاح.')));
+    } catch (error) {
+      if (mounted) setState(() => _apiStatus = 'فشل الاتصال: $error');
+    } finally {
+      if (mounted) setState(() => _apiBusy = false);
+    }
+  }
+
+  Future<void> _runInitialSync() async {
+    if (_syncBusy || !ApiClient.instance.isAuthenticated) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استيراد البيانات إلى PostgreSQL؟'),
+        content: const Text(
+          'سيتم إرسال نسخة من المنتجات والمخزون الحالي والموردين والزبائن وفواتير الشراء والبيع القديمة إلى خادمك. '
+          'المخزون الحالي سيُسجّل كرصد افتتاحي، والفواتير القديمة ستُحفظ كسجل تاريخي دون إعادة إضافة أو خصم مخزونها. '
+          'لن تُحذف بيانات SQLite من هذا الجهاز. هذه عملية استيراد أولية وليست مزامنة مستمرة للتعديلات الجديدة.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد الاستيراد')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _syncBusy = true);
+    try {
+      final result = await InitialSyncService.run();
+      final counts = Map<String, dynamic>.from(result['counts'] as Map);
+      final summary = 'المنتجات: ${counts['products'] ?? 0} • المخزون: ${counts['opening_stock_items'] ?? 0} • '
+          'المشتريات: ${counts['purchases'] ?? 0} • المبيعات: ${counts['sales'] ?? 0}';
+      if (mounted) setState(() => _syncStatus = result['already_imported_on_device'] == true
+          ? 'سبق استيراد هذه البيانات على هذا الجهاز. $summary'
+          : 'نجح الاستيراد الأولي. $summary');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_syncStatus)));
+    } catch (error) {
+      if (mounted) setState(() => _syncStatus = 'لم تكتمل المزامنة: $error');
+    } finally {
+      if (mounted) setState(() => _syncBusy = false);
+    }
+  }
+
+
+  Future<void> _resolveCloudConflict() async {
+    final conflicts = await CloudSyncService.pendingConflicts();
+    if (conflicts.isEmpty || !mounted) return;
+    final conflict = conflicts.first;
+    final key = conflict['key']?.toString() ?? 'بيانات';
+    final keepLocal = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعارض في المزامنة'),
+        content: Text(
+          'تم تعديل "$key" على هذا الجهاز وعلى الخادم. لم نستبدل أي نسخة تلقائياً. '
+          'اختر النسخة التي تريد اعتمادها؛ يمكنك إنشاء نسخة احتياطية قبل الاختيار.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('اعتماد نسخة الخادم'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('الاحتفاظ بنسخة هذا الجهاز'),
+          ),
+        ],
+      ),
+    );
+    if (keepLocal == null || !mounted) return;
+    await CloudSyncService.resolveConflict(key, keepLocal: keepLocal);
+    if (mounted) setState(() => _syncStatus =
+        keepLocal ? 'احتفظنا بنسخة هذا الجهاز. أعد المزامنة لإرسالها للخادم.'
+                  : 'اعتمدنا نسخة الخادم. أعد المزامنة لتحديث بقية البيانات.');
+  }
+
+  Future<void> _runCloudSync() async {
+    if (_syncBusy || !ApiClient.instance.isAuthenticated) return;
+    setState(() => _syncBusy = true);
+    try {
+      final result = await CloudSyncService.synchronize();
+      final message = 'اكتملت المزامنة: أُرسل ${result['pushed']} تغيير واستُقبل ${result['pulled']} تغيير. رقم المتابعة: ${result['cursor']}';
+      if (mounted) setState(() => _syncStatus = message);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (mounted) setState(() => _syncStatus = 'المزامنة توقفت لحماية البيانات: $error');
+      if (mounted) {
+        try {
+          await _resolveCloudConflict();
+        } catch (resolveError) {
+          if (mounted) setState(() => _syncStatus = 'تعذر حل التعارض: $resolveError');
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _syncBusy = false);
+    }
+  }
+
+  Future<void> _createBackup() async {
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'BatiProDZ-backup-${DateTime.now().toIso8601String().substring(0, 10)}.json',
+      );
+      if (location == null) return;
+      final contents = await AppStorage.exportBackupJson();
+      await File(location.path).writeAsString(contents, flush: true);
+      if (mounted) setState(() => _backupStatus = 'تم إنشاء النسخة الاحتياطية بنجاح: ${location.path}');
+    } catch (error) {
+      if (mounted) setState(() => _backupStatus = 'فشل إنشاء النسخة الاحتياطية: $error');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    if (_backupBusy) return;
+    final selected = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'BatiPro backup', extensions: ['json']),
+    ]);
+    if (selected == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استرجاع نسخة احتياطية؟'),
+        content: const Text(
+          'تحذير: سيؤدي الاسترجاع إلى استبدال جميع بيانات BatiPro الموجودة حالياً على هذا الجهاز ببيانات الملف المختار. '
+          'أنشئ نسخة احتياطية من الحالة الحالية أولاً إذا كنت تريد الاحتفاظ بها.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استرجاع واستبدال البيانات')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _backupBusy = true);
+    try {
+      final count = await AppStorage.restoreBackupJson(await selected.readAsString());
+      final storage = await AppStorage.getInstance();
+      await storage.setString('batipro_auto_backup_day', '');
+      final automatic = await BackupService.createAutomaticDailyBackup();
+      if (mounted) setState(() => _backupStatus =
+          'تم استرجاع $count سجلاً. أُنشئت نسخة أمان للحالة المسترجعة: ${automatic.path}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم استرجاع البيانات. أعد فتح القسم لتحديث العرض.')));
+    } catch (error) {
+      if (mounted) setState(() => _backupStatus = 'تعذر الاسترجاع؛ لم يتم قبول الملف: $error');
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _logoutApi() async {
+    await ApiClient.instance.logout();
+    if (mounted) setState(() => _apiStatus = 'تم تسجيل الخروج من الخادم');
+  }
+
   Widget _field(TextEditingController controller, String label, {IconData? icon}) =>
-      Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(
+      Padding(padding: const EdgeInsets.only(bottom: 7), child: TextField(
         controller: controller,
-        decoration: InputDecoration(labelText: label, prefixIcon: icon == null ? null : Icon(icon)),
+        decoration: InputDecoration(labelText: AppLanguage.translate(label), prefixIcon: icon == null ? null : Icon(icon)),
       ));
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Card(child: Padding(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const PosPeripheralsPanel(),
+        const SizedBox(height: 11),
+        const Text('Langue / اللغة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _language,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: AppLanguage.translate('لغة البرنامج / Langue de l’application'),
+            prefixIcon: Icon(Icons.translate_rounded),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'ar', child: Text('العربية')),
+            DropdownMenuItem(value: 'fr', child: Text('Français')),
+          ],
+          onChanged: (value) async {
+            if (value == null) return;
+            final prefs = await AppStorage.getInstance();
+            await prefs.setString('batipro_language', value);
+            AppLanguage.set(value);
+            if (_currency.text == 'DZD - السنتيم الجزائري' || _currency.text == 'DZD - centime algérien') {
+              _currency.text = AppLanguage.translate('DZD - السنتيم الجزائري');
+            }
+            if (mounted) setState(() => _language = value);
+          },
+        ),
+        const SizedBox(height: 18),
         const Text('معلومات المحل', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
         const SizedBox(height: 14),
         _field(_name, 'اسم المحل', icon: Icons.storefront_outlined),
@@ -1048,11 +1415,101 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: _save,
           icon: const Icon(Icons.save_outlined),
-          label: const Text('حفظ الإعدادات'),
+          label: const Text('حفظ إعدادات المحل'),
+        )),
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 12),
+        const Text('النسخ الاحتياطي واسترجاع البيانات', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 6),
+        const Text(
+          'يُنشئ التطبيق نسخة JSON كاملة من بياناته المحلية يومياً عند التشغيل، ويحافظ على آخر 7 نسخ تلقائية. يمكنك أيضاً حفظ نسخة خارج الجهاز أو استرجاع ملف سابق.',
+          style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: _backupBusy ? null : _createBackup,
+          icon: _backupBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.backup_outlined),
+          label: const Text('إنشاء نسخة احتياطية الآن'),
+        )),
+        const SizedBox(height: 7),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: _backupBusy ? null : _restoreBackup,
+          icon: const Icon(Icons.restore),
+          label: const Text('استرجاع نسخة احتياطية'),
+        )),
+        const SizedBox(height: 8),
+        Text(_backupStatus, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+        const SizedBox(height: 16),
+        const Text('الاتصال بخادم PostgreSQL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+        const SizedBox(height: 5),
+        const Text('أدخل عنوان API الذي يستضيفه مسؤول النظام. لا تضع كلمة مرور قاعدة البيانات هنا.',
+            style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+        const SizedBox(height: 12),
+        _field(_serverUrl, 'رابط الخادم (مثال: https://api.example.com)', icon: Icons.dns_outlined),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: _apiBusy ? null : _saveServer,
+          icon: const Icon(Icons.link),
+          label: const Text('حفظ عنوان الخادم'),
         )),
         const SizedBox(height: 12),
-        const Text('الإعدادات تُحفظ محلياً على الجهاز. النسخ الاحتياطي والمستخدمون والصلاحيات ستُضاف لاحقاً.',
+        _field(_apiEmail, 'البريد الإلكتروني', icon: Icons.email_outlined),
+        _field(_apiPassword, 'كلمة مرور حساب BatiPro', icon: Icons.lock_outline),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: _apiBusy ? null : _loginApi,
+          icon: _apiBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.cloud_sync_outlined),
+          label: const Text('الاتصال وتسجيل الدخول'),
+        )),
+        if (ApiClient.instance.isAuthenticated)
+          SizedBox(width: double.infinity, child: TextButton.icon(
+            onPressed: _apiBusy ? null : _logoutApi,
+            icon: const Icon(Icons.logout),
+            label: const Text('تسجيل الخروج من الخادم'),
+          )),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            Icon(ApiClient.instance.isAuthenticated ? Icons.cloud_done : Icons.cloud_off,
+                color: ApiClient.instance.isAuthenticated ? BatiProTheme.green : BatiProTheme.muted, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_apiStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink))),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runInitialSync,
+          icon: _syncBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.cloud_upload_outlined),
+          label: Text(_syncBusy ? 'جارٍ استيراد البيانات...' : 'استيراد بيانات هذا الجهاز إلى PostgreSQL'),
+        )),
+
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runCloudSync,
+          icon: _syncBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync),
+          label: const Text('مزامنة التغييرات بين الأجهزة الآن'),
+        )),
+        const SizedBox(height: 8),
+        Text(_syncStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink, height: 1.5)),
+        const SizedBox(height: 5),
+        const Text('الاستيراد الأولي ينقل السجل القديم مرة واحدة. زر المزامنة يرسل التعديلات المحلية ويستقبل تغييرات الأجهزة الأخرى. عند تعديل نفس القسم على جهازين، تتوقف المزامنة وتبلغك بالتعارض بدلاً من الكتابة فوق البيانات بصمت.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+        const SizedBox(height: 12),
+        const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
+            style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
+
       ]),
     ));
   }

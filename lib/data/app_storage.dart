@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart' as legacy_prefs;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart' as sqflite;
 
 /// SQLite-backed local persistence. Existing SharedPreferences values are
 /// copied once and retained there until the user has a verified backup.
@@ -13,6 +15,7 @@ class AppStorage {
   static Database? _database;
   static final Map<String, String> _cache = <String, String>{};
   static const String _migrationKey = '__legacy_shared_preferences_migrated_v1';
+  static const String _centimeMigrationKey = '__batipro_currency_centime_v1';
 
   static Future<void> initialize({bool inMemory = false}) async {
     if (_database != null) return;
@@ -21,6 +24,9 @@ class AppStorage {
     if (useFfi) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
+    } else {
+      // Android/iOS use the native SQLite plugin; desktop and in-memory tests use FFI.
+      databaseFactory = sqflite.databaseFactory;
     }
 
     late final String databasePath;
@@ -60,6 +66,7 @@ class AppStorage {
 
     if (!inMemory) {
       await _migrateLegacyPreferences(db);
+      await _migrateCurrencyValuesToCentimes(db);
     }
   }
 
@@ -110,6 +117,157 @@ class AppStorage {
         row['data_key'] as String,
         row['data_value'] as String,
       )));
+  }
+
+
+  /// One-time conversion of legacy DZD amounts to integer Algerian centimes.
+  /// Only explicitly named monetary fields are converted; quantities and weights stay unchanged.
+  static Future<void> _migrateCurrencyValuesToCentimes(Database db) async {
+    final marker = await db.query(
+      'app_data',
+      columns: const ['data_key'],
+      where: 'data_key = ?',
+      whereArgs: const [_centimeMigrationKey],
+      limit: 1,
+    );
+    if (marker.isNotEmpty) return;
+
+    const moneyFields = <String>{
+      'purchasePrice', 'salePrice', 'stockUnitPrice', 'unitPrice', 'price',
+      'total', 'subtotal', 'discount', 'paid', 'amount', 'balance',
+      'openingBalance', 'paidSales', 'purchases', 'expenses', 'sales',
+      'customerDebt', 'supplierDebt', 'cost',
+      'purchase_price', 'sale_price', 'unit_price', 'line_total',
+      'opening_balance', 'paid_sales', 'customer_debt', 'supplier_debt',
+    };
+
+    dynamic convert(dynamic value) {
+      if (value is Map) {
+        final result = <String, dynamic>{};
+        for (final entry in value.entries) {
+          final key = entry.key.toString();
+          final child = entry.value;
+          if (moneyFields.contains(key) && child is num) {
+            result[key] = (child * 100).round();
+          } else {
+            result[key] = convert(child);
+          }
+        }
+        return result;
+      }
+      if (value is List) return value.map((item) => convert(item)).toList();
+      return value;
+    }
+
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'app_data',
+        columns: const ['data_key', 'data_value'],
+        where: "data_key LIKE 'batipro_%'",
+      );
+      final now = DateTime.now().toIso8601String();
+      for (final row in rows) {
+        final key = row['data_key'] as String;
+        final raw = row['data_value'] as String;
+        try {
+          final decoded = jsonDecode(raw);
+          final converted = jsonEncode(convert(decoded));
+          if (converted != raw) {
+            await txn.update(
+              'app_data',
+              {'data_value': converted, 'updated_at': now},
+              where: 'data_key = ?',
+              whereArgs: [key],
+            );
+          }
+        } on FormatException {
+          // Plain-text settings (such as the currency label) are not amounts.
+        }
+      }
+      await txn.insert('app_data', {
+        'data_key': _centimeMigrationKey,
+        'data_value': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+
+    final migrated = await db.query('app_data');
+    _cache
+      ..clear()
+      ..addEntries(migrated.map((row) => MapEntry(
+        row['data_key'] as String,
+        row['data_value'] as String,
+      )));
+  }
+
+  /// Exports every persisted key/value row without copying a live SQLite/WAL file.
+  static Future<String> exportBackupJson() async {
+    final db = _database;
+    if (db == null) throw StateError('SQLite database is not initialized.');
+    final rows = await db.query('app_data', orderBy: 'data_key ASC');
+    return jsonEncode({
+      'format': 'BatiProDZ-backup',
+      'version': 1,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'data': rows.map((row) => {
+        'key': row['data_key'],
+        'value': row['data_value'],
+        'updated_at': row['updated_at'],
+      }).toList(),
+    });
+  }
+
+  /// Validates a complete backup before replacing local data in one transaction.
+  static Future<int> restoreBackupJson(String source) async {
+    final db = _database;
+    if (db == null) throw StateError('SQLite database is not initialized.');
+    final decoded = jsonDecode(source);
+    if (decoded is! Map || decoded['format'] != 'BatiProDZ-backup' ||
+        decoded['version'] != 1 || decoded['data'] is! List) {
+      throw const FormatException('ملف النسخة الاحتياطية غير صالح أو غير مدعوم.');
+    }
+    final entries = <Map<String, String>>[];
+    final seen = <String>{};
+    for (final raw in decoded['data'] as List) {
+      if (raw is! Map || raw['key'] is! String || raw['value'] is! String) {
+        throw const FormatException('بيانات النسخة الاحتياطية غير مكتملة.');
+      }
+      final key = (raw['key'] as String).trim();
+      if (key.isEmpty || !seen.add(key)) {
+        throw const FormatException('توجد مفاتيح فارغة أو مكررة في النسخة الاحتياطية.');
+      }
+      entries.add({
+        'data_key': key,
+        'data_value': raw['value'] as String,
+        'updated_at': raw['updated_at'] is String
+            ? raw['updated_at'] as String
+            : DateTime.now().toIso8601String(),
+      });
+    }
+    if (entries.isEmpty) {
+      throw const FormatException('النسخة الاحتياطية فارغة.');
+    }
+    await db.transaction((txn) async {
+      await txn.delete('app_data');
+      final batch = txn.batch();
+      for (final entry in entries) {
+        batch.insert('app_data', entry);
+      }
+      await batch.commit(noResult: true);
+    });
+    _cache
+      ..clear()
+      ..addEntries(entries.map((entry) => MapEntry(entry['data_key']!, entry['data_value']!)));
+    await _migrateCurrencyValuesToCentimes(db);
+    return entries.length;
+  }
+
+  /// Closes the in-memory database between widget tests.
+  static Future<void> resetForTests() async {
+    final db = _database;
+    _database = null;
+    _cache.clear();
+    if (db != null) await db.close();
   }
 
   static Future<AppStorage> getInstance() async {

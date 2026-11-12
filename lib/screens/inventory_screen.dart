@@ -1,13 +1,16 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../data/app_storage.dart';
 import '../app/app_theme.dart';
+import '../app/app_language.dart';
 
 class _Product {
   final String id, name, category, unit;
   final double quantity, minimum, purchasePrice, salePrice;
   final double? steelWeightKg, pieceWeightKg, diameterMm, lengthM;
-  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice, this.steelWeightKg, this.pieceWeightKg, this.diameterMm, this.lengthM});
+  final int? palletCount;
+  const _Product({required this.id, required this.name, required this.category, required this.unit, required this.quantity, required this.minimum, required this.purchasePrice, required this.salePrice, this.steelWeightKg, this.pieceWeightKg, this.diameterMm, this.lengthM, this.palletCount});
   factory _Product.fromJson(Map<String, dynamic> j) => _Product(
     id: j['id'] as String, name: j['name'] as String, category: j['category'] as String,
     unit: j['unit'] as String, quantity: (j['quantity'] as num).toDouble(),
@@ -17,8 +20,9 @@ class _Product {
     pieceWeightKg: (j['pieceWeightKg'] as num?)?.toDouble(),
     diameterMm: (j['diameterMm'] as num?)?.toDouble(),
     lengthM: (j['lengthM'] as num?)?.toDouble(),
+    palletCount: (j['palletCount'] as num?)?.toInt(),
   );
-  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice,'steelWeightKg':steelWeightKg,'pieceWeightKg':pieceWeightKg,'diameterMm':diameterMm,'lengthM':lengthM};
+  Map<String, dynamic> toJson() => {'id':id,'name':name,'category':category,'unit':unit,'quantity':quantity,'minimum':minimum,'purchasePrice':purchasePrice,'salePrice':salePrice,'steelWeightKg':steelWeightKg,'pieceWeightKg':pieceWeightKg,'diameterMm':diameterMm,'lengthM':lengthM,'palletCount':palletCount};
 }
 
 class InventoryScreen extends StatefulWidget {
@@ -73,11 +77,13 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   late final TextEditingController _length;
   late final TextEditingController _pieceWeight;
   late final TextEditingController _unit;
+  late final TextEditingController _palletCount;
   late String _category;
   late String _weightUnit;
 
   bool get _isSteel => _category.contains('حديد') || _category.contains('سلك') || _category.contains('شبك') || _category.contains('أنبوب') || _category.contains('عوارض') || _category.contains('زوايا') || _category.contains('مقاطع') || _category.contains('صفائح') || _category.contains('فلات') || _category.contains('قضبان ملولبة') || _category.contains('مسامير');
   bool get _usesDiameter => _category.startsWith('حديد تسليح') || _category == 'الحديد تسليح' || _category == 'حديد دائري مصمت';
+  bool get _isBrick => _category.contains('آجر');
 
   @override
   void initState() {
@@ -95,12 +101,13 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     _length = TextEditingController(text: p?.lengthM?.toString() ?? '12');
     _pieceWeight = TextEditingController(text: p?.pieceWeightKg?.toString() ?? '');
     _unit = TextEditingController(text: p?.unit ?? 'وحدة');
+    _palletCount = TextEditingController(text: p?.palletCount?.toString() ?? '0');
     _weightUnit = 'kg';
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight, _unit]) {
+    for (final c in [_name, _quantity, _minimum, _purchasePrice, _salePrice, _weight, _diameter, _length, _pieceWeight, _unit, _palletCount]) {
       c.dispose();
     }
     super.dispose();
@@ -111,16 +118,16 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
 
   Widget _field(TextEditingController controller, String label, {bool numeric = false, String? helper}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: TextFormField(
         controller: controller,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        decoration: InputDecoration(labelText: label, helperText: helper),
+        decoration: InputDecoration(labelText: AppLanguage.translate(label), helperText: helper == null ? null : AppLanguage.translate(helper)),
         validator: (value) {
-          if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
+          if (value == null || value.trim().isEmpty) return AppLanguage.translate('هذا الحقل مطلوب');
           if (numeric) {
             final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
-            if (parsed == null || !parsed.isFinite || parsed < 0) return 'أدخل رقماً صحيحاً';
+            if (parsed == null || !parsed.isFinite || parsed < 0) return AppLanguage.translate('أدخل رقماً صحيحاً');
           }
           return null;
         },
@@ -165,6 +172,11 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     } else {
       finalUnit = _unit.text.trim().isEmpty ? 'وحدة' : _unit.text.trim();
     }
+    final palletValue = _number(_palletCount);
+    if (_isBrick && palletValue > 0 && palletValue != palletValue.roundToDouble()) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عدد الحبات في الباليطة يجب أن يكون عدداً صحيحاً.')));
+      return;
+    }
     Navigator.of(context).pop(_Product(
       id: p?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
       name: _name.text.trim(),
@@ -172,34 +184,44 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       unit: finalUnit,
       quantity: finalQuantity,
       minimum: _isSteel ? _number(_minimum) : _number(_minimum),
-      purchasePrice: _number(_purchasePrice),
-      salePrice: _number(_salePrice),
+      purchasePrice: _number(_purchasePrice).roundToDouble(),
+      salePrice: _number(_salePrice).roundToDouble(),
       steelWeightKg: _isSteel ? _number(_weight) * (_weightUnit == 'ton' ? 1000 : 1) : null,
       pieceWeightKg: _isSteel ? (_usesDiameter
           ? (3.141592653589793 / 4) * (_number(_diameter) / 1000) * (_number(_diameter) / 1000) * _number(_length) * 7850
           : _number(_pieceWeight)) : null,
       diameterMm: _isSteel && _usesDiameter ? _number(_diameter) : null,
       lengthM: _isSteel ? _number(_length) : null,
+      palletCount: _isBrick && palletValue > 0 ? palletValue.round() : null,
     ));
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.product == null ? 'إضافة منتج للمخزون' : 'تعديل المنتج'),
+      title: Row(children: [
+        Container(width: 42, height: 42, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.inventory_2_outlined, color: BatiProTheme.ink)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.product == null ? 'إضافة منتج للمخزون' : 'تعديل المنتج'),
+          const SizedBox(height: 3),
+          const Text('بيانات المادة والتسعير ووحدات التخزين', style: TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400)),
+        ])),
+      ]),
       content: SizedBox(
-        width: 440,
+        width: 490,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: double.infinity, padding: const EdgeInsets.all(9), margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: BatiProTheme.canvas, borderRadius: BorderRadius.circular(13)), child: const Row(children: [Icon(Icons.construction_rounded, color: BatiProTheme.gold), SizedBox(width: 9), Expanded(child: Text('أدخل مواصفات المادة كما تُباع وتُخزّن في المحل.', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)))])),
               _field(_name, 'اسم المنتج'),
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: DropdownButtonFormField<String>(
                   value: _categories.contains(_category) ? _category : 'مواد البناء',
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'الصنف / نوع الحديد'),
+                  decoration: InputDecoration(labelText: AppLanguage.translate('الصنف / نوع الحديد')),
                   items: _categories.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                   onChanged: (v) => setState(() => _category = v ?? 'مواد البناء'),
                 ),
@@ -210,7 +232,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                   const SizedBox(width: 8),
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _weightUnit,
-                    decoration: const InputDecoration(labelText: 'الوحدة'),
+                    decoration: InputDecoration(labelText: AppLanguage.translate('الوحدة')),
                     items: const [
                       DropdownMenuItem(value: 'kg', child: Text('كيلوغرام')),
                       DropdownMenuItem(value: 'ton', child: Text('طن')),
@@ -225,9 +247,9 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                       value: const ['8', '10', '12', '14', '16', '20', '25', '32'].contains(_diameter.text)
                           ? _diameter.text : '12',
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'مقاس حديد التسليح',
-                        helperText: 'اختر T8 أو T10 أو T12 أو T14 أو T16 أو T20 أو T25 أو T32',
+                      decoration: InputDecoration(
+                        labelText: AppLanguage.translate('مقاس حديد التسليح'),
+                        helperText: AppLanguage.translate('اختر T8 أو T10 أو T12 أو T14 أو T16 أو T20 أو T25 أو T32'),
                       ),
                       items: const [
                         DropdownMenuItem(value: '8', child: Text('T8 — قطر 8 ملم')),
@@ -252,13 +274,14 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
               ] else ...[
                 _field(_unit, 'وحدة القياس (كيس، حبة، طن، م³...)'),
                 _field(_quantity, 'الكمية', numeric: true),
+                if (_isBrick) _field(_palletCount, 'عدد الحبات في الباليطة', numeric: true, helper: 'اتركه 0 إذا لا تريد البيع بالباليطة لهذا النوع.'),
               ],
               Row(children: [
                 Expanded(child: _field(_minimum, 'حد التنبيه', numeric: true)),
                 const SizedBox(width: 8),
-                Expanded(child: _field(_purchasePrice, 'سعر الشراء للقضيب/الوحدة', numeric: true)),
+                Expanded(child: _field(_purchasePrice, 'سعر الشراء للقضيب/الوحدة (سنتيم)', numeric: true)),
               ]),
-              _field(_salePrice, 'سعر البيع للقضيب/الوحدة', numeric: true),
+              _field(_salePrice, 'سعر البيع للقضيب/الوحدة (سنتيم)', numeric: true),
               if (_isSteel)
                 const Text('وزن القضيب الدائري يُحسب بالقطر والطول وكثافة الحديد 7850 كغ/م³. الأنواع ذات المقاطع المختلفة تعتمد وزن القطعة الذي تدخله.',
                   style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.4)),
@@ -272,6 +295,98 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       ],
     );
   }
+}
+
+
+class _StockCountDialog extends StatefulWidget {
+  final _Product product;
+  const _StockCountDialog({required this.product});
+
+  @override
+  State<_StockCountDialog> createState() => _StockCountDialogState();
+}
+
+class _StockCountDialogState extends State<_StockCountDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _quantity;
+  final TextEditingController _reason = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = TextEditingController(text: widget.product.quantity.toString());
+  }
+
+  @override
+  void dispose() {
+    _quantity.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: BatiProTheme.gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.fact_check_outlined, color: BatiProTheme.ink)), const SizedBox(width: 11), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('جرد وتسوية المخزون'), SizedBox(height: 3), Text('مطابقة الرصيد الفعلي مع الكمية المسجلة', style: TextStyle(fontSize: 11, color: BatiProTheme.muted, fontWeight: FontWeight.w400))]))]),
+    content: SizedBox(
+      width: 390,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(AppLanguage.translate('المادة: ') + widget.product.name, translate: false, style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 8),
+            Text(AppLanguage.translate('الرصيد الحالي: ') + '${widget.product.quantity} ${AppLanguage.translate(widget.product.unit)}', translate: false),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _quantity,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: AppLanguage.translate('الكمية الفعلية بعد العد'),
+                suffixText: widget.product.unit,
+              ),
+              validator: (value) {
+                final parsed = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
+                if (parsed == null || !parsed.isFinite || parsed < 0) {
+                  return AppLanguage.translate('أدخل كمية صحيحة ولا تكون سالبة');
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _reason,
+              decoration: InputDecoration(
+                labelText: AppLanguage.translate('سبب التسوية'),
+                hintText: AppLanguage.translate('مثلاً: جرد دوري، تلف، كسر أو فرق في العد'),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? AppLanguage.translate('اكتب سبب التسوية')
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton.icon(
+        onPressed: () {
+          if (!_formKey.currentState!.validate()) return;
+          Navigator.pop(context, {
+            'quantity': double.parse(_quantity.text.trim().replaceAll(',', '.')),
+            'reason': _reason.text.trim(),
+          });
+        },
+        icon: const Icon(Icons.fact_check_outlined),
+        label: const Text('تأكيد الجرد'),
+      ),
+    ],
+  );
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
@@ -324,9 +439,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
     if (_products.isEmpty && raw == null) {
       _products = [
-        const _Product(id:'seed-1',name:'إسمنت عادي',category:'الإسمنت',unit:'كيس',quantity:240,minimum:30,purchasePrice:550,salePrice:650),
-        const _Product(id:'seed-2',name:'حديد تسليح 12 مم',category:'الحديد',unit:'قضيب',quantity:580,minimum:80,purchasePrice:850,salePrice:980),
-        const _Product(id:'seed-3',name:'آجر أحمر',category:'الآجر',unit:'حبة',quantity:3500,minimum:500,purchasePrice:18,salePrice:23),
+        const _Product(id:'seed-1',name:'إسمنت عادي',category:'الإسمنت',unit:'كيس',quantity:240,minimum:30,purchasePrice:55000,salePrice:65000),
+        const _Product(id:'seed-2',name:'حديد تسليح 12 مم',category:'الحديد',unit:'قضيب',quantity:580,minimum:80,purchasePrice:85000,salePrice:98000),
+        const _Product(id:'seed-3',name:'آجر أحمر',category:'الآجر',unit:'حبة',quantity:3500,minimum:500,purchasePrice:1800,salePrice:2300),
       ];
       await _save();
     }
@@ -351,7 +466,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }).toList();
   }
 
-  String _money(double n) => '${n.toStringAsFixed(n == n.roundToDouble() ? 0 : 2)} دج';
+  String _money(double n) => '${n.round()} سنتيم';
   Future<void> _edit([_Product? old, String? initialCategory]) async {
     final result = await showDialog<_Product>(
       context: context,
@@ -370,9 +485,140 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
 
+
+  Future<void> _adjustStock(_Product product) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _StockCountDialog(product: product),
+    );
+    if (result == null || !mounted) return;
+    final counted = (result['quantity'] as num).toDouble();
+    final delta = counted - product.quantity;
+    if (delta.abs() < 0.0000001) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الجرد مطابق للرصيد الحالي، لا توجد تسوية.')),
+      );
+      return;
+    }
+
+    final prefs = await AppStorage.getInstance();
+    final raw = prefs.getString('batipro_stock_movements_v1');
+    final movements = <Map<String, dynamic>>[];
+    if (raw != null) {
+      try {
+        movements.addAll((jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر قراءة سجل حركات المخزون؛ لم يتم تغيير الرصيد.')),
+        );
+        return;
+      }
+    }
+    final now = DateTime.now();
+    movements.insert(0, {
+      'id': now.microsecondsSinceEpoch.toString(),
+      'date': now.toIso8601String(),
+      'type': 'stock_count',
+      'productId': product.id,
+      'productName': product.name,
+      'previousQuantity': product.quantity,
+      'countedQuantity': counted,
+      'quantityDelta': delta,
+      'unit': product.unit,
+      'reason': result['reason'],
+    });
+    if (movements.length > 500) movements.removeRange(500, movements.length);
+
+    final updated = _Product(
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      unit: product.unit,
+      quantity: counted,
+      minimum: product.minimum,
+      purchasePrice: product.purchasePrice,
+      salePrice: product.salePrice,
+      steelWeightKg: product.steelWeightKg,
+      pieceWeightKg: product.pieceWeightKg,
+      diameterMm: product.diameterMm,
+      lengthM: product.lengthM,
+      palletCount: product.palletCount,
+    );
+    final nextProducts = _products.map((item) => item.id == product.id ? updated : item).toList();
+    await AppStorage.setStrings({
+      _storageKey: jsonEncode(nextProducts.map((item) => item.toJson()).toList()),
+      'batipro_stock_movements_v1': jsonEncode(movements),
+    });
+    if (mounted) {
+      setState(() => _products = nextProducts);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تسجيل فرق الجرد: ${delta > 0 ? '+' : ''}${delta.toStringAsFixed(3)} ${product.unit}.')),
+      );
+    }
+  }
+
+  Future<void> _showStockMovements() async {
+    final prefs = await AppStorage.getInstance();
+    final raw = prefs.getString('batipro_stock_movements_v1');
+    List<Map<String, dynamic>> movements = [];
+    if (raw != null) {
+      try {
+        movements = (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('سجل حركات المخزون'),
+        content: SizedBox(
+          width: 520,
+          height: 420,
+          child: movements.isEmpty
+              ? const Center(child: Text('لا توجد حركات مخزون مسجلة بعد.'))
+              : ListView.separated(
+                  itemCount: movements.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, index) {
+                    final item = movements[index];
+                    final delta = (item['quantityDelta'] as num?)?.toDouble() ?? 0;
+                    final date = (item['date'] ?? '').toString();
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        delta >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                        color: delta >= 0 ? BatiProTheme.green : BatiProTheme.red,
+                      ),
+                      title: Text((item['productName'] ?? 'مادة').toString(), translate: false),
+                      subtitle: Text(
+                        '${item['reason'] ?? ''} • ${date.length >= 16 ? date.substring(0, 16).replaceFirst('T', ' ') : date}\\n'
+                        '${item['previousQuantity'] != null ? 'قبل: ${item['previousQuantity']} • بعد: ${item['countedQuantity']}' : 'المرجع: ${item['referenceId'] ?? '—'}'}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      trailing: Text(
+                        '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(3)} ${item['unit'] ?? ''}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: delta >= 0 ? BatiProTheme.green : BatiProTheme.red,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _delete(_Product p) async {
     final yes = await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('حذف المنتج؟'),content:Text('سيتم حذف ${p.name} من القائمة.'),
+      title:const Text('حذف المنتج؟'),content:Text(AppLanguage.translate('سيتم حذف ') + p.name + AppLanguage.translate(' من القائمة.'), translate: false),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]));
     if(yes==true){setState(()=>_products.removeWhere((e)=>e.id==p.id));await _save();}
   }
@@ -383,10 +629,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final total = _products.fold<double>(0,(s,p)=>s+p.quantity*p.purchasePrice);
     return SafeArea(child:_loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c)=>SingleChildScrollView(
       padding:EdgeInsets.all(c.maxWidth<650?16:28),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text('BatiPro DZ',style:TextStyle(color:BatiProTheme.muted,fontSize:11)),
-          SizedBox(height:4),Text('المنتجات والمخزون',style:TextStyle(fontSize:23,fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-        ])),FilledButton.icon(onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),icon:const Icon(Icons.add),label:const Text('إضافة'))]),
+        Container(
+          width:double.infinity,
+          padding:EdgeInsets.all(c.maxWidth<650?16:21),
+          decoration:BoxDecoration(
+            gradient:const LinearGradient(begin:Alignment.topRight,end:Alignment.bottomLeft,colors:[Color(0xFF173447),Color(0xFF31566A)]),
+            borderRadius:BorderRadius.circular(20),
+          ),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Row(children:[
+              Container(width:40,height:40,decoration:BoxDecoration(color:BatiProTheme.gold,borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.inventory_2_rounded,color:BatiProTheme.ink)),
+              const SizedBox(width:11),
+              const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text('مركز المواد والمخزون',style:TextStyle(color:Color(0xFFD5E2E9),fontSize:10)),
+                SizedBox(height:3),Text('المنتجات والمخزون',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:Colors.white)),
+              ])),
+              IconButton(onPressed:_showStockMovements,tooltip: AppLanguage.translate('سجل حركات المخزون'),style:IconButton.styleFrom(backgroundColor:Colors.white.withValues(alpha:.12),foregroundColor:Colors.white),icon:const Icon(Icons.history_rounded)),
+            ]),
+            const SizedBox(height:14),
+            Align(alignment:Alignment.centerLeft,child:FilledButton.icon(
+              style:FilledButton.styleFrom(backgroundColor:BatiProTheme.gold,foregroundColor:BatiProTheme.ink),
+              onPressed:()=>_edit(null, _activeGroup == null ? null : (_filter == 'الكل' ? _inventoryGroups[_activeGroup]!.first : _filter)),
+              icon:const Icon(Icons.add_rounded),label:const Text('إضافة مادة جديدة'),
+            )),
+          ]),
+        ),
         const SizedBox(height:20),
         GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:c.maxWidth<600?2:3,childAspectRatio:c.maxWidth<600?1.8:2.2,crossAxisSpacing:10,mainAxisSpacing:10,children:[
           _metric('عدد المنتجات','${_products.length}',Icons.inventory_2_outlined),
@@ -439,7 +706,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         if(_activeGroup != null) ...[
           const SizedBox(height:12),
           Row(children:[
-            Expanded(child:Text('أنواع ${_activeGroup!}',style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
+            Expanded(child:Text(AppLanguage.translate('أنواع ') + AppLanguage.translate(_activeGroup!),translate:false,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
             TextButton(onPressed:()=>setState((){_activeGroup=null;_filter='الكل';}),child:const Text('إظهار الكل')),
           ]),
           Wrap(spacing:7,runSpacing:7,children:[
@@ -452,7 +719,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ]),
         ],
         const SizedBox(height:16),
-        TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(hintText:'ابحث عن منتج أو صنف...',prefixIcon:Icon(Icons.search))),
+        TextField(controller:_search,onChanged:(_)=>setState((){}),decoration:InputDecoration(hintText: AppLanguage.translate('ابحث عن منتج أو صنف...'),prefixIcon:Icon(Icons.search))),
         const SizedBox(height:10),
         if (_activeGroup == null)
           Wrap(spacing:8,runSpacing:6,children:['الكل','نقص المخزون',..._products.map((p)=>p.category).toSet().toList()].map((v)=>ChoiceChip(label:Text(v),selected:_filter==v,onSelected:(_)=>setState(()=>_filter=v))).toList()),
@@ -461,12 +728,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
         else ..._visible.map((p)=>Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
           Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.14),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.inventory_2_outlined,color:BatiProTheme.ink)),
           const SizedBox(width:11),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(p.name,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
-            Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
+            Text(p.name,translate:false,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
+            Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}${(p.palletCount ?? 0) > 0 ? ' | الباليطة: ${p.palletCount} حبة' : ''}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
             const SizedBox(height:5),Text('المتوفر: ${p.quantity} ${p.unit} • حد التنبيه: ${p.minimum}',style:TextStyle(fontSize:11,color:p.quantity<=p.minimum?BatiProTheme.red:BatiProTheme.green,fontWeight:FontWeight.w700)),
           ])),
-          PopupMenuButton<String>(onSelected:(v){if(v=='edit')_edit(p);if(v=='delete')_delete(p);},itemBuilder:(_)=>const [
-            PopupMenuItem(value:'edit',child:Text('تعديل')),PopupMenuItem(value:'delete',child:Text('حذف')),
+          PopupMenuButton<String>(onSelected:(v){if(v=='edit')_edit(p);if(v=='count')_adjustStock(p);if(v=='delete')_delete(p);},itemBuilder:(_)=>const [
+            PopupMenuItem(value:'count',child:Text('جرد / تسوية الكمية')),
+            PopupMenuItem(value:'edit',child:Text('تعديل')),
+            PopupMenuItem(value:'delete',child:Text('حذف')),
           ]),
         ])))),
         const SizedBox(height:20),

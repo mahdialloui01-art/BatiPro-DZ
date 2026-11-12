@@ -1,0 +1,47 @@
+name: BatiPro PostgreSQL backend checks
+
+on:
+  push:
+    branches: [main, feature/postgresql-backend-foundation]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: batipro_test
+          POSTGRES_USER: batipro
+          POSTGRES_PASSWORD: batipro_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U batipro -d batipro_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://batipro:batipro_test@localhost:5432/batipro_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Apply PostgreSQL schema
+        run: python backend/scripts/migrate.py
+      - name: Validate Docker Compose configuration
+        run: docker compose --env-file .env.example config --quiet
+      - name: Run API and schema tests
+        working-directory: backend
+        env:
+          PYTHONPATH: .
+        run: pytest -q

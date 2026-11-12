@@ -1,8 +1,8 @@
-name: Flutter checks and Android test build
+name: BatiPro DZ Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/postgresql-backend-foundation]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - run: flutter create --platforms=android --project-name batipro_dz .
       - name: Ensure Android launcher activity is declared
         shell: bash

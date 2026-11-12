@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../app/app_theme.dart';
 
 class SectionHeader extends StatelessWidget {
@@ -14,21 +15,15 @@ class SectionHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
-          const SizedBox(height: 5),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: BatiProTheme.muted)),
+          Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: BatiProTheme.ink, letterSpacing: -.3)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: BatiProTheme.muted, height: 1.4)),
         ])),
         if (actionLabel != null)
           FilledButton.icon(
             onPressed: onAction,
             icon: const Icon(Icons.add_rounded, size: 18),
             label: Text(actionLabel!),
-            style: FilledButton.styleFrom(
-              backgroundColor: BatiProTheme.ink,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-            ),
           ),
       ],
     );
