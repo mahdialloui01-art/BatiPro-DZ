@@ -122,7 +122,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       child: TextFormField(
         controller: controller,
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        decoration: InputDecoration(labelText: AppLanguage.translate(label), helperText: helper),
+        decoration: InputDecoration(labelText: AppLanguage.translate(label), helperText: helper == null ? null : AppLanguage.translate(helper)),
         validator: (value) {
           if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
           if (numeric) {
