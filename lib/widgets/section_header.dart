@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../app/app_theme.dart';
 
 class SectionHeader extends StatelessWidget {
