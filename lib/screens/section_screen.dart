@@ -1150,7 +1150,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
-    _currency.text = prefs.getString('batipro_currency') ?? 'DZD - السنتيم الجزائري';
+    _currency.text = AppLanguage.translate(prefs.getString('batipro_currency') ?? 'DZD - السنتيم الجزائري');
     if (_currency.text.contains('الدينار الجزائري')) _currency.text = 'DZD - السنتيم الجزائري';
     await ApiClient.instance.initialize();
     _serverUrl.text = ApiClient.instance.baseUrl ?? '';
@@ -1388,6 +1388,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             final prefs = await AppStorage.getInstance();
             await prefs.setString('batipro_language', value);
             AppLanguage.set(value);
+            if (_currency.text == 'DZD - السنتيم الجزائري' || _currency.text == 'DZD - centime algérien') {
+              _currency.text = AppLanguage.translate('DZD - السنتيم الجزائري');
+            }
             if (mounted) setState(() => _language = value);
           },
         ),
