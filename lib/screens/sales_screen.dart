@@ -107,7 +107,7 @@ class _SalesScreenState extends State<SalesScreen> {
     final saleUnit = pallet ? 'باليطة' : product.unit;
     final unitPrice = product.price * factor;
     final index = _posCart.indexWhere((line) => line.product.id == product.id && line.saleUnit == saleUnit);
-    final current = index < 0 ? 0.0 : _posCart[index].baseQuantity;
+    final current = _posCart.where((line) => line.product.id == product.id).fold<double>(0, (sum, line) => sum + line.baseQuantity);
     if (current + factor > product.quantity + 0.0000001) { _toast('الكمية المتوفرة غير كافية.'); return; }
     setState(() {
       if (index >= 0) {
