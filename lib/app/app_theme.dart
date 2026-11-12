@@ -67,10 +67,13 @@ class BatiProTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFFF7F9FB),
-        hintStyle: const TextStyle(color: muted, fontSize: 13),
-        labelStyle: const TextStyle(color: muted, fontSize: 12),
+        hintStyle: const TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.4),
+        labelStyle: const TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600),
+        floatingLabelStyle: const TextStyle(color: ink, fontSize: 12.5, fontWeight: FontWeight.w700),
+        helperStyle: const TextStyle(color: muted, fontSize: 10.5, height: 1.35),
+        errorStyle: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
         prefixIconColor: muted,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
           borderSide: const BorderSide(color: line),
