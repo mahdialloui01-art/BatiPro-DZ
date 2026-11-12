@@ -1,8 +1,10 @@
-name: Android checks (paused - manual only)
+name: BatiPro DZ Android APK
 
-# Android CI is intentionally paused while Windows desktop and PostgreSQL
-# are the active delivery targets. Keep manual dispatch available for later.
 on:
+  push:
+    branches: [main, feature/postgresql-backend-foundation]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
