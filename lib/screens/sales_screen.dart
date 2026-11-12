@@ -116,6 +116,11 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
 
+  void _posRemoveLine(int index) {
+    setState(() => _posCart.removeAt(index));
+    if (_posPayment == 'نقداً') _posPaid.text = (_posTotal / 100).toStringAsFixed(2);
+  }
+
   double get _posTotal => _posCart.fold<double>(0, (sum, line) => sum + line.total).roundToDouble();
   double get _posPaidAmount => _parseDzd(_posPaid.text);
 
@@ -200,7 +205,7 @@ class _SalesScreenState extends State<SalesScreen> {
         IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,-1),icon:const Icon(Icons.remove_circle_outline,size:19)),
         Text(line.quantity.toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
         IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posChangeQty(i,1),icon:const Icon(Icons.add_circle_outline,size:19)),
-        IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState(()=>_posCart.removeAt(i)),icon:const Icon(Icons.delete_outline,color:Colors.red,size:18)),
+        IconButton(visualDensity:VisualDensity.compact,onPressed:()=>_posRemoveLine(i),icon:const Icon(Icons.delete_outline,color:Colors.red,size:18)),
       ]));})),
       const Divider(height:10),
       Row(children:[const Expanded(child:Text('الإجمالي',style:TextStyle(fontWeight:FontWeight.bold))),Text(_money(_posTotal),style:const TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:BatiProTheme.ink))]),
