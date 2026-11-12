@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../app/app_language.dart';
 import '../data/app_storage.dart';
 import '../data/pos_drawer_service.dart';
 import '../app/app_theme.dart';
@@ -354,7 +355,7 @@ $text | Out-Printer -Name $name
           decoration: InputDecoration(labelText: 'المبلغ (سنتيم)', helperText: 'المتبقي: ${_money(invoice.due)}'),
         ),
         actions: [
-          TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text(AppLanguage.text('إلغاء', 'Annuler'))),
           FilledButton(onPressed: (){
             final value = double.tryParse(controller.text.trim().replaceAll(',', '.'))?.roundToDouble();
             if (value == null || !value.isFinite || value <= 0 || value > invoice.due) {
@@ -391,7 +392,7 @@ $text | Out-Printer -Name $name
       content:SizedBox(width:440,child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
         Text('الزبون: '+i.client),Text('التاريخ: '+_date(i.date)),const Divider(height:22),
         for(final e in i.items)Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[Expanded(child:Text(e['name'].toString()+' • '+(e['displayQuantity']??e['quantity']).toString()+' '+(e['displayUnit']??e['unit']).toString(),style:const TextStyle(fontSize:12))),Text(_money((e['total'] as num).toDouble()))])),
-        const Divider(height:22),_detail('الإجمالي',_money(i.total)),_detail('المدفوع',_money(i.paid)),_detail('المتبقي',_money(i.due),i.due>0?BatiProTheme.red:BatiProTheme.green),_detail('طريقة الدفع',i.method),_detail('الحالة',i.status),
+        const Divider(height:22),_detail('الإجمالي',_money(i.total)),_detail('المدفوع',_money(i.paid)),_detail('المتبقي',_money(i.due),i.due>0?BatiProTheme.red:BatiProTheme.green),_detail(AppLanguage.text('طريقة الدفع', 'Mode de paiement'),i.method),_detail('الحالة',i.status),
       ]))),
       actions:[
         if(i.due>0) FilledButton.icon(onPressed:()=>_collectPayment(i),icon:const Icon(Icons.payments_outlined),label:const Text('تحصيل دفعة')),
@@ -526,7 +527,7 @@ class _SaleReturnEditorState extends State<_SaleReturnEditor> {
       ],
     ))),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text(AppLanguage.text('إلغاء', 'Annuler'))),
       FilledButton.icon(onPressed: submit, icon: const Icon(Icons.assignment_return), label: const Text('تأكيد الإرجاع')),
     ],
   );
@@ -569,24 +570,24 @@ class _SaleEditorState extends State<_SaleEditor>{
   }
   @override Widget build(BuildContext context){
     final p=_product;
-    return AlertDialog(title:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.16),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.point_of_sale_rounded,color:BatiProTheme.ink)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('إنشاء فاتورة بيع'),SizedBox(height:3),Text('اختر المواد وأدخل الكميات وطريقة الدفع',style:TextStyle(fontSize:11,color:BatiProTheme.muted,fontWeight:FontWeight.w400))]))]),content:SizedBox(width:560,child:Form(key:form,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+    return AlertDialog(title:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.16),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.point_of_sale_rounded,color:BatiProTheme.ink)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(AppLanguage.text('إنشاء فاتورة بيع', 'Créer une facture de vente')),SizedBox(height:3),Text(AppLanguage.text('اختر المواد وأدخل الكميات وطريقة الدفع', 'Choisissez les articles, les quantités et le mode de paiement'),style:TextStyle(fontSize:11,color:BatiProTheme.muted,fontWeight:FontWeight.w400))]))]),content:SizedBox(width:560,child:Form(key:form,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
       Container(width:double.infinity,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(13)),child:const Row(children:[Icon(Icons.offline_bolt_outlined,color:BatiProTheme.green,size:18),SizedBox(width:9),Expanded(child:Text('البيع يخصم الكمية من المخزون تلقائياً بعد حفظ الفاتورة.',style:TextStyle(fontSize:11,color:BatiProTheme.muted)))])),
       const SizedBox(height:12),
-      TextFormField(controller:client,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),decoration:const InputDecoration(labelText:'اسم الزبون (اختياري)',prefixIcon:Icon(Icons.person_outline))),
-      const SizedBox(height:12),const Text('المنتجات',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
-      DropdownButtonFormField<String>(value:selected,isExpanded:true,decoration:const InputDecoration(labelText:'اختر المنتج'),items:widget.products.map((p)=>DropdownMenuItem(value:p.id,child:Text(p.name+' • '+(p.raw['category']??'').toString()+' — '+p.quantity.toString()+' '+p.unit,overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){if(v==null)return;final chosen=widget.products.firstWhere((item)=>item.id==v);setState((){selected=v;saleUnit='حبة';quantity=1;price=chosen.price;});}),
-      if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:const InputDecoration(labelText:'طريقة البيع'),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
+      TextFormField(controller:client,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),decoration:const InputDecoration(labelText:AppLanguage.text('اسم الزبون (اختياري)', 'Nom du client (facultatif)'),prefixIcon:Icon(Icons.person_outline))),
+      const SizedBox(height:12),const Text(AppLanguage.text('المنتجات', 'Articles'),style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
+      DropdownButtonFormField<String>(value:selected,isExpanded:true,decoration:const InputDecoration(labelText:AppLanguage.text('اختر المنتج', 'Choisir un article')),items:widget.products.map((p)=>DropdownMenuItem(value:p.id,child:Text(p.name+' • '+(p.raw['category']??'').toString()+' — '+p.quantity.toString()+' '+p.unit,overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){if(v==null)return;final chosen=widget.products.firstWhere((item)=>item.id==v);setState((){selected=v;saleUnit='حبة';quantity=1;price=chosen.price;});}),
+      if(p!=null&&p.palletCount>0)Padding(padding:const EdgeInsets.only(top:8),child:DropdownButtonFormField<String>(value:saleUnit,decoration:const InputDecoration(labelText:AppLanguage.text('طريقة البيع', 'Mode de vente')),items:[const DropdownMenuItem(value:'حبة',child:Text('بالحبة')),DropdownMenuItem(value:'باليطة',child:Text('بالباليطة (${p.palletCount} حبة)'))],onChanged:(v){if(v==null)return;setState((){saleUnit=v;quantity=1;price=p.price*_factor(p);});})),
       const SizedBox(height:8),Row(children:[
-        Expanded(child:TextFormField(key:ValueKey('qty-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:'الكمية ${saleUnit=='باليطة'?'باليطة':'حبة/وحدة'}'),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
-        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:price.toString(),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:saleUnit=='باليطة'?'سعر الباليطة بالسنتيم':'سعر الحبة بالسنتيم'),onChanged:(v)=>price=(double.tryParse(v.replaceAll(',','.'))??-1).roundToDouble())),
+        Expanded(child:TextFormField(key:ValueKey('qty-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:'1',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:AppLanguage.text('الكمية ${saleUnit=='باليطة'?'باليطة':'حبة/وحدة'}', 'Quantité ${saleUnit=='باليطة'?'palette':'pièce/unité'}')),onChanged:(v)=>quantity=double.tryParse(v.replaceAll(',','.'))??0)),
+        const SizedBox(width:8),Expanded(child:TextFormField(key:ValueKey('price-$selected-$saleUnit'),style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),initialValue:price.toString(),keyboardType:TextInputType.number,decoration:InputDecoration(labelText:saleUnit=='باليطة'?AppLanguage.text('سعر الباليطة بالسنتيم', 'Prix palette (centimes)'):AppLanguage.text('سعر الحبة بالسنتيم', 'Prix pièce (centimes)')),onChanged:(v)=>price=(double.tryParse(v.replaceAll(',','.'))??-1).roundToDouble())),
         const SizedBox(width:6),IconButton.filled(onPressed:_add,icon:const Icon(Icons.add),tooltip:'إضافة'),
       ]),
       if(p!=null)Text('المتوفر: '+p.quantity.toString()+' '+p.unit+(p.palletCount>0?' • يعادل ${(p.quantity/p.palletCount).toStringAsFixed(2)} باليطة':'') ,style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
       if(cart.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:BatiProTheme.canvas,borderRadius:BorderRadius.circular(12)),child:Column(children:[for(var i=0;i<cart.length;i++)Row(children:[Expanded(child:Text(cart[i].product.name+' • '+cart[i].quantity.toString()+' '+cart[i].saleUnit,style:const TextStyle(fontSize:11))),Text(_money(cart[i].total),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,onPressed:()=>setState((){cart.removeAt(i);if(method=='نقداً')paid.text=_total.toStringAsFixed(2);}),icon:const Icon(Icons.close,size:17))])])),
       const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:Text('الإجمالي: '+_money(_total),style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:BatiProTheme.ink))),
-      const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:'طريقة الدفع'),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
-      const SizedBox(height:8),TextFormField(controller:paid,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'المبلغ المدفوع بالسنتيم'),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
+      const SizedBox(height:10),DropdownButtonFormField<String>(value:method,decoration:const InputDecoration(labelText:AppLanguage.text('طريقة الدفع', 'Mode de paiement')),items:const [DropdownMenuItem(value:'نقداً',child:Text('نقداً — كامل')),DropdownMenuItem(value:'دفع جزئي',child:Text('دفع جزئي')),DropdownMenuItem(value:'على الحساب',child:Text('على الحساب'))],onChanged:(v)=>setState((){method=v??'نقداً';if(method=='نقداً')paid.text=_total.toStringAsFixed(2);if(method=='على الحساب')paid.text='0';})),
+      const SizedBox(height:8),TextFormField(controller:paid,style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:AppLanguage.text('المبلغ المدفوع بالسنتيم', 'Montant payé (centimes)')),onChanged:(_)=>setState((){}),validator:(v){final n=double.tryParse((v??'').trim().replaceAll(',','.'));if(n==null||!n.isFinite||n<0)return'أدخل مبلغاً صحيحاً';if(n>_total)return'المبلغ أكبر من الإجمالي';return null;}),
       const SizedBox(height:5),Text('المتبقي: '+_money((_total-_paid).clamp(0,double.infinity).toDouble()),style:const TextStyle(fontSize:12,color:BatiProTheme.red,fontWeight:FontWeight.bold)),
-    ])))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('إلغاء')),FilledButton.icon(onPressed:_save,icon:const Icon(Icons.save_outlined),label:const Text('حفظ الفاتورة'))]);
+    ])))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text(AppLanguage.text('إلغاء', 'Annuler'))),FilledButton.icon(onPressed:_save,icon:const Icon(Icons.save_outlined),label:const Text(AppLanguage.text('حفظ الفاتورة', 'Enregistrer la facture')))]);
   }
 }
