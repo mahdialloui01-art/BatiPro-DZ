@@ -99,6 +99,21 @@ class _SectionScreenState extends State<SectionScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant SectionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title) {
+      final nextKind = _resolveKind(widget.title);
+      if (nextKind != _kind) {
+        _kind = nextKind;
+        _storageKey = 'batipro_${_kind}_v1';
+        _items = [];
+        _loading = true;
+        _load();
+      }
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _kind = _resolveKind(widget.title);
