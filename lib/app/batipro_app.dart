@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_theme.dart';
+import 'app_language.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/inventory_screen.dart';
@@ -14,9 +15,12 @@ class BatiProApp extends StatelessWidget {
       title: 'BatiPro DZ',
       debugShowCheckedModeBanner: false,
       theme: BatiProTheme.light,
-      home: const Directionality(
-        textDirection: TextDirection.rtl,
-        child: AppShell(),
+      home: ValueListenableBuilder<String>(
+        valueListenable: AppLanguage.current,
+        builder: (context, language, child) => Directionality(
+          textDirection: language == 'fr' ? TextDirection.ltr : TextDirection.rtl,
+          child: const AppShell(),
+        ),
       ),
     );
   }
@@ -33,16 +37,16 @@ class _AppShellState extends State<AppShell> {
   int selected = 0;
 
   static const sections = [
-    _NavItem('لوحة القيادة', Icons.grid_view_rounded),
-    _NavItem('المنتجات والمخزون', Icons.inventory_2_outlined),
-    _NavItem('المبيعات والفواتير', Icons.point_of_sale_rounded),
-    _NavItem('الشراء من المورد', Icons.shopping_cart_checkout_rounded),
-    _NavItem('الزبائن', Icons.groups_2_outlined),
-    _NavItem('الموردون', Icons.local_shipping_outlined),
-    _NavItem('المستودعات', Icons.warehouse_outlined),
-    _NavItem('المصاريف', Icons.receipt_long_outlined),
-    _NavItem('التقارير', Icons.bar_chart_rounded),
-    _NavItem('الإعدادات', Icons.settings_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Tableau de bord' : 'لوحة القيادة', Icons.grid_view_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Produits et stock' : 'المنتجات والمخزون', Icons.inventory_2_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Ventes et factures' : 'المبيعات والفواتير', Icons.point_of_sale_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Achats fournisseurs' : 'الشراء من المورد', Icons.shopping_cart_checkout_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Clients' : 'الزبائن', Icons.groups_2_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Fournisseurs' : 'الموردون', Icons.local_shipping_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Entrepôts' : 'المستودعات', Icons.warehouse_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Dépenses' : 'المصاريف', Icons.receipt_long_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Rapports' : 'التقارير', Icons.bar_chart_rounded),
+    _NavItem(AppLanguage.isFrench ? 'Paramètres' : 'الإعدادات', Icons.settings_outlined),
   ];
 
   Widget _page() {
@@ -88,11 +92,11 @@ class _AppShellState extends State<AppShell> {
             }
           },
           destinations: const [
-            NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
-            NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'المخزون'),
-            NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: 'المبيعات'),
-            NavigationDestination(icon: Icon(Icons.shopping_cart_checkout_rounded), label: 'المشتريات'),
-            NavigationDestination(icon: Icon(Icons.menu_rounded), label: 'المزيد'),
+            NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: AppLanguage.isFrench ? 'Accueil' : 'الرئيسية'),
+            NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: AppLanguage.isFrench ? 'Stock' : 'المخزون'),
+            NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: AppLanguage.isFrench ? 'Ventes' : 'المبيعات'),
+            NavigationDestination(icon: Icon(Icons.shopping_cart_checkout_rounded), label: AppLanguage.isFrench ? 'Achats' : 'المشتريات'),
+            NavigationDestination(icon: Icon(Icons.menu_rounded), label: AppLanguage.isFrench ? 'Plus' : 'المزيد'),
           ],
         ),
       );
