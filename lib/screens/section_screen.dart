@@ -178,7 +178,7 @@ class _SectionScreenState extends State<SectionScreen> {
     await prefs.setString(_storageKey, jsonEncode(_items));
   }
 
-  String _money(double value) => '${value.round()} سنتيم';
+  String _money(double value) => AppLanguage.translate('${value.round()} سنتيم');
 
   double _sum(String key) => _items.fold<double>(
       0, (sum, item) => sum + ((item[key] as num?)?.toDouble() ?? 0));
@@ -589,17 +589,17 @@ class _SectionScreenState extends State<SectionScreen> {
             child: Icon(widget.icon, color: BatiProTheme.ink, size: 20)),
           const SizedBox(width: 11),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(headline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
+            Text(headline, translate: false, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: BatiProTheme.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
+            Text(subtitle, translate: false, style: const TextStyle(fontSize: 10, color: BatiProTheme.muted)),
             if (status != null) Padding(
               padding: const EdgeInsets.only(top: 5),
-              child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor ?? BatiProTheme.green)),
+              child: Text(status, translate: false, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor ?? BatiProTheme.green)),
             ),
           ])),
           const SizedBox(width: 6),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(trailing, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+            Text(trailing, translate: false, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
             if (action != null) action,
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
@@ -679,9 +679,9 @@ class _SectionScreenState extends State<SectionScreen> {
       const SizedBox(height: 10),
       if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
         e, (e['product'] ?? '').toString(),
-        '${e['supplier'] ?? 'مورد غير محدد'} • كمية: ${e['inputQuantity'] ?? e['quantity'] ?? 0} ${e['inputUnit'] ?? ''} • ${e['pieceCount'] == null ? '' : '≈ ${((e['pieceCount'] as num).toDouble()).toStringAsFixed(1)} قضيب • '} ${e['reference'] ?? 'بدون رقم وصل'}',
+        '${e['supplier'] ?? AppLanguage.translate('مورد غير محدد')} • ${AppLanguage.translate('كمية: ')}${e['inputQuantity'] ?? e['quantity'] ?? 0} ${AppLanguage.translate((e['inputUnit'] ?? '').toString())} • ${e['pieceCount'] == null ? '' : '≈ ${((e['pieceCount'] as num).toDouble()).toStringAsFixed(1)} ${AppLanguage.translate('قضيب')} • '} ${e['reference'] ?? AppLanguage.translate('بدون رقم وصل')}',
         _money((e['total'] as num?)?.toDouble() ?? 0),
-        status: 'المدفوع: ${_money((e['paid'] as num?)?.toDouble() ?? 0)} • المتبقي: ${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
+        status: '${AppLanguage.translate('المدفوع: ')}${_money((e['paid'] as num?)?.toDouble() ?? 0)} • ${AppLanguage.translate('المتبقي: ')}${_money((((e['total'] as num?)?.toDouble() ?? 0) - ((e['paid'] as num?)?.toDouble() ?? 0)).clamp(0, double.infinity).toDouble())}',
         action: IconButton(
           tooltip: AppLanguage.translate('تسجيل دفعة للمورد'),
           onPressed: () => _collectSupplierPayment(e),
@@ -709,7 +709,7 @@ class _SectionScreenState extends State<SectionScreen> {
       const SizedBox(height: 10),
       if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
         e, (e['name'] ?? '').toString(),
-        '${e['phone'] ?? 'بدون هاتف'} • ${e['address'] ?? 'بدون عنوان'}',
+        '${e['phone'] ?? AppLanguage.translate('بدون هاتف')} • ${e['address'] ?? AppLanguage.translate('بدون عنوان')}',
         (e['balance'] as num?) == null ? '—' : _money((e['balance'] as num).toDouble()),
         status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
       )),
@@ -729,7 +729,7 @@ class _SectionScreenState extends State<SectionScreen> {
     const SizedBox(height: 12),
     if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
       e, (e['name'] ?? '').toString(),
-      '${e['location'] ?? 'الموقع غير محدد'} • المسؤول: ${e['manager'] ?? 'غير محدد'}',
+      '${e['location'] ?? AppLanguage.translate('الموقع غير محدد')} • ${AppLanguage.translate('المسؤول: ')}${e['manager'] ?? AppLanguage.translate('غير محدد')}',
       'مستودع',
       status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
     )),
@@ -747,7 +747,7 @@ class _SectionScreenState extends State<SectionScreen> {
     const SizedBox(height: 12),
     if (_visible.isEmpty) _empty() else ..._visible.map((e) => _recordCard(
       e, (e['label'] ?? '').toString(),
-      '${e['category'] ?? 'عام'} • ${(e['date'] ?? '').toString().split('T').first}',
+      '${e['category'] ?? AppLanguage.translate('عام')} • ${(e['date'] ?? '').toString().split('T').first}',
       _money((e['amount'] as num?)?.toDouble() ?? 0),
       status: (e['note'] ?? '').toString().isEmpty ? null : e['note'].toString(),
     )),
