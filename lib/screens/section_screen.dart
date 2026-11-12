@@ -1150,8 +1150,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _name.text = prefs.getString('batipro_shop_name') ?? 'محل مواد البناء';
     _phone.text = prefs.getString('batipro_shop_phone') ?? '';
     _address.text = prefs.getString('batipro_shop_address') ?? '';
-    _currency.text = AppLanguage.translate(prefs.getString('batipro_currency') ?? 'DZD - السنتيم الجزائري');
-    if (_currency.text.contains('الدينار الجزائري')) _currency.text = 'DZD - السنتيم الجزائري';
+    final savedCurrency = prefs.getString('batipro_currency');
+    final isDefaultCurrency = savedCurrency == null ||
+        savedCurrency == 'DZD - السنتيم الجزائري' ||
+        savedCurrency == 'DZD - centime algérien' ||
+        savedCurrency.contains('الدينار الجزائري');
+    _currency.text = isDefaultCurrency
+        ? AppLanguage.text('DZD - السنتيم الجزائري', 'DZD - centime algérien')
+        : savedCurrency;
     await ApiClient.instance.initialize();
     _serverUrl.text = ApiClient.instance.baseUrl ?? '';
     if (ApiClient.instance.isAuthenticated) {
@@ -1170,7 +1176,11 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     await prefs.setString('batipro_shop_name', _name.text.trim());
     await prefs.setString('batipro_shop_phone', _phone.text.trim());
     await prefs.setString('batipro_shop_address', _address.text.trim());
-    await prefs.setString('batipro_currency', _currency.text.trim());
+    final currencyValue = _currency.text.trim();
+    await prefs.setString('batipro_currency',
+        currencyValue == 'DZD - centime algérien' || currencyValue == 'DZD - السنتيم الجزائري'
+            ? 'DZD - السنتيم الجزائري'
+            : currencyValue);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ إعدادات المحل.')));
   }
 
