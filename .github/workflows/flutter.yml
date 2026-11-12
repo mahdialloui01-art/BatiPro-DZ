@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - run: flutter create --platforms=android --project-name batipro_dz .
       - name: Ensure Android launcher activity is declared
         shell: bash
