@@ -26,7 +26,7 @@ void main() {
     expect(AppLanguage.translate('حديد تسليح T16'), 'Acier d’armature T16');
     expect(AppLanguage.translate('إسمنت CEM I 42.5'), 'Ciment CEM I 42.5');
     expect(AppLanguage.translate('ڨرافي 0/4'), 'Gravier 0/4');
-    expect(AppLanguage.translate('المتوفر: 25 كيس • حد التنبيه: 5'), 'Disponible : 25 كيس • Seuil d’alerte : 5');
+    expect(AppLanguage.translate('المتوفر: 25 كيس • حد التنبيه: 5'), 'Disponible : 25 Sac • Seuil d’alerte : 5');
     expect(AppLanguage.translate('رقم الفاتورة: 42'), 'N° de facture : 42');
   });
 
