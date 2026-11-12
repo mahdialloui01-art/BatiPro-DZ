@@ -152,8 +152,8 @@ class _Sidebar extends StatelessWidget {
                 ])),
               ]),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(22, 0, 22, 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
               child: Text(AppLanguage.text('القائمة الرئيسية', 'MENU PRINCIPAL'), style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
             ),
             Expanded(
@@ -190,8 +190,8 @@ class _Sidebar extends StatelessWidget {
               margin: const EdgeInsets.all(15),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: const Color(0xFF233F52), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white.withValues(alpha: .08))),
-              child: const Row(children: [
-                Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
+              child: Row(children: [
+                const Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
                 SizedBox(width: 9),
                 Expanded(child: Text(AppLanguage.text('وضع العمل دون إنترنت', 'Mode hors ligne'), style: TextStyle(color: Colors.white, fontSize: 11))),
                 Icon(Icons.circle, color: Color(0xFF48B58B), size: 8),
@@ -240,7 +240,7 @@ class _MoreSectionsSheet extends StatelessWidget {
                         child: const Icon(Icons.apps_rounded, color: BatiProTheme.gold, size: 25),
                       ),
                       const SizedBox(width: 13),
-                      const Expanded(child: Column(
+                      Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(AppLanguage.text('المزيد من BatiPro', 'Plus de BatiPro'), style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
@@ -293,7 +293,7 @@ class _MoreSectionsSheet extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 13),
                                 Expanded(child: Text(items[index].label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BatiProTheme.ink))),
-                                const Icon(AppLanguage.isFrench ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
+                                Icon(AppLanguage.isFrench ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
                               ]),
                             ),
                           ),
@@ -307,8 +307,8 @@ class _MoreSectionsSheet extends StatelessWidget {
                       color: BatiProTheme.ink,
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: const Row(children: [
-                      Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
+                    child: Row(children: [
+                      const Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
                       SizedBox(width: 10),
                       Expanded(child: Text(AppLanguage.text('تقدر تخدم على بياناتك حتى بدون إنترنت', 'Travaillez sur vos données même sans connexion Internet'), style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       Icon(Icons.check_circle_rounded, color: Color(0xFF58C99B), size: 16),
