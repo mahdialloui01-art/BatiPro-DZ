@@ -559,7 +559,7 @@ class _SaleEditorState extends State<_SaleEditor>{
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
     final baseQuantity=quantity*_factor(p);
     final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.baseQuantity);
-    if(old+baseQuantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('المتوفر من '+p.name+': '+p.quantity.toString()+' '+p.unit+' فقط، والكمية المطلوبة تعادل '+baseQuantity.toString()+' '+p.unit+'.')));return;}
+    if(old+baseQuantity>p.quantity){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(AppLanguage.translate('المتوفر من ') + p.name + AppLanguage.translate(': ') + p.quantity.toString() + ' ' + AppLanguage.translate(p.unit) + AppLanguage.translate(' فقط، والكمية المطلوبة تعادل ') + baseQuantity.toString() + ' ' + AppLanguage.translate(p.unit) + '.', translate:false)));return;}
     setState((){cart.add(_SaleLine(p,quantity,price,baseQuantity,saleUnit=='باليطة'?'باليطة':p.unit));if(method=='نقداً')paid.text=_total.toStringAsFixed(2);});
   }
   void _save(){
