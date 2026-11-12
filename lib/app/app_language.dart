@@ -674,7 +674,7 @@ class AppLanguage {
       'طن': 'Tonne',
       'كغ': 'kg',
       ': ': ' : ',
-    };;;;;
+    };
     final ordered = phrases.entries.toList()..sort((a, b) => b.key.length.compareTo(a.key.length));
     for (final entry in ordered) {
       result = result.replaceAll(entry.key, entry.value);
