@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../app/localized_text.dart';
 import '../app/app_language.dart';
 import '../data/app_storage.dart';
 import '../data/backup_service.dart';
