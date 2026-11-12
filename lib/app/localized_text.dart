@@ -37,20 +37,23 @@ class Text extends m.StatelessWidget {
   });
 
   @override
-  m.Widget build(m.BuildContext context) => m.Text(
-    AppLanguage.translate(data),
-    style: style,
-    strutStyle: strutStyle,
-    textAlign: textAlign,
-    textDirection: textDirection,
-    locale: locale,
-    softWrap: softWrap,
-    overflow: overflow,
-    textScaler: textScaler,
-    maxLines: maxLines,
-    semanticsLabel: semanticsLabel == null ? null : AppLanguage.translate(semanticsLabel!),
-    textWidthBasis: textWidthBasis,
-    textHeightBehavior: textHeightBehavior,
-    selectionColor: selectionColor,
+  m.Widget build(m.BuildContext context) => m.ValueListenableBuilder<String>(
+    valueListenable: AppLanguage.current,
+    builder: (context, language, child) => m.Text(
+      AppLanguage.translate(data),
+      style: style,
+      strutStyle: strutStyle,
+      textAlign: textAlign,
+      textDirection: textDirection,
+      locale: locale,
+      softWrap: softWrap,
+      overflow: overflow,
+      textScaler: textScaler,
+      maxLines: maxLines,
+      semanticsLabel: semanticsLabel == null ? null : AppLanguage.translate(semanticsLabel!),
+      textWidthBasis: textWidthBasis,
+      textHeightBehavior: textHeightBehavior,
+      selectionColor: selectionColor,
+    ),
   );
 }
