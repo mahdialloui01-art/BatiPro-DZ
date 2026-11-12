@@ -621,7 +621,7 @@ class _SectionScreenState extends State<SectionScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: 'المبلغ (سنتيم)', helperText: 'المتبقي: ${_money(due)}'),
+          decoration: InputDecoration(labelText: AppLanguage.translate('المبلغ (سنتيم)'), helperText: AppLanguage.translate('المتبقي: ${_money(due)}')),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
@@ -1344,7 +1344,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   Widget _field(TextEditingController controller, String label, {IconData? icon}) =>
       Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(
         controller: controller,
-        decoration: InputDecoration(labelText: label, prefixIcon: icon == null ? null : Icon(icon)),
+        decoration: InputDecoration(labelText: AppLanguage.translate(label), prefixIcon: icon == null ? null : Icon(icon)),
       ));
 
   @override
@@ -1360,8 +1360,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         DropdownButtonFormField<String>(
           value: _language,
           isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'لغة البرنامج / Langue de l’application',
+          decoration: InputDecoration(
+            labelText: AppLanguage.translate('لغة البرنامج / Langue de l’application'),
             prefixIcon: Icon(Icons.translate_rounded),
           ),
           items: const [
