@@ -137,11 +137,6 @@ class _AccountGateState extends State<AccountGate> {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_setupRequired) return _setupPage();
 
-    // The role is only granted after the corresponding PIN has been checked.
-    if (_role == 'manager' && _error == null && !_busy && _pin.text.isEmpty) {
-      // The login button clears the PIN only after successful validation.
-      // A dedicated authenticated flag below controls the active session.
-    }
     return _activePage();
   }
 
