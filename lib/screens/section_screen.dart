@@ -1079,11 +1079,11 @@ class _EntryEditorState extends State<_EntryEditor> {
                                   : null,
                         ),
                         validator: (value) {
-                          if ((value == null || value.trim().isEmpty) && !field.optional) return 'هذا الحقل مطلوب';
+                          if ((value == null || value.trim().isEmpty) && !field.optional) return AppLanguage.translate('هذا الحقل مطلوب');
                           if (field.optional && (value == null || value.trim().isEmpty)) return null;
                           if (field.number && (value ?? '').trim().isNotEmpty) {
                             final n = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
-                            if (n == null || !n.isFinite || n < 0) return 'أدخل رقماً صحيحاً';
+                            if (n == null || !n.isFinite || n < 0) return AppLanguage.translate('أدخل رقماً صحيحاً');
                           }
                           return null;
                         },
