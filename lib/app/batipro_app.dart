@@ -7,6 +7,7 @@ import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/inventory_screen.dart';
 import '../screens/sales_screen.dart';
+import '../screens/seller_access_screen.dart';
 
 class BatiProApp extends StatelessWidget {
   const BatiProApp({super.key});
@@ -56,12 +57,14 @@ class _AppShellState extends State<AppShell> {
     _NavItem(AppLanguage.isFrench ? 'Dépenses' : 'المصاريف', Icons.receipt_long_outlined),
     _NavItem(AppLanguage.isFrench ? 'Rapports' : 'التقارير', Icons.bar_chart_rounded),
     _NavItem(AppLanguage.isFrench ? 'Paramètres' : 'الإعدادات', Icons.settings_outlined),
+    _NavItem(AppLanguage.isFrench ? 'Espace vendeur' : 'حساب البائع', Icons.badge_outlined),
   ];
 
   Widget _page() {
     if (selected == 0) return const DashboardScreen();
     if (selected == 1) return const InventoryScreen();
     if (selected == 2) return const SalesScreen();
+    if (selected == 10) return const SellerAccessScreen();
     return SectionScreen(title: sections[selected].label, icon: sections[selected].icon);
   }
 
@@ -215,7 +218,7 @@ class _MoreSectionsSheet extends StatelessWidget {
     final groups = <({String title, String subtitle, List<int> indexes})>[
       (title: AppLanguage.text('البيع والشراء', 'Ventes et achats'), subtitle: AppLanguage.text('فواتير البيع وشراء السلع من الموردين', 'Factures de vente et achats auprès des fournisseurs'), indexes: [3, 7]),
       (title: AppLanguage.text('العلاقات التجارية', 'Relations commerciales'), subtitle: AppLanguage.text('إدارة الأشخاص المتعاملين معك', 'Gestion des clients et fournisseurs'), indexes: [4, 5]),
-      (title: AppLanguage.text('التنظيم والتحليل', 'Organisation et analyse'), subtitle: AppLanguage.text('رتّب العمل وراقب النتائج', 'Organisez votre activité et suivez les résultats'), indexes: [6, 8, 9]),
+      (title: AppLanguage.text('التنظيم والتحليل', 'Organisation et analyse'), subtitle: AppLanguage.text('رتّب العمل وراقب النتائج', 'Organisez votre activité et suivez les résultats'), indexes: [6, 8, 9, 10]),
     ];
     return SafeArea(
       child: Container(
