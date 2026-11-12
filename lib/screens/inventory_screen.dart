@@ -644,7 +644,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 Text('مركز المواد والمخزون',style:TextStyle(color:Color(0xFFD5E2E9),fontSize:10)),
                 SizedBox(height:3),Text('المنتجات والمخزون',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:Colors.white)),
               ])),
-              IconButton(onPressed:_showStockMovements,tooltip:'سجل حركات المخزون',style:IconButton.styleFrom(backgroundColor:Colors.white.withValues(alpha:.12),foregroundColor:Colors.white),icon:const Icon(Icons.history_rounded)),
+              IconButton(onPressed:_showStockMovements,tooltip: AppLanguage.translate('سجل حركات المخزون'),style:IconButton.styleFrom(backgroundColor:Colors.white.withValues(alpha:.12),foregroundColor:Colors.white),icon:const Icon(Icons.history_rounded)),
             ]),
             const SizedBox(height:14),
             Align(alignment:Alignment.centerLeft,child:FilledButton.icon(
