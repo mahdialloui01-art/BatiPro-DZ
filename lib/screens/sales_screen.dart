@@ -569,7 +569,7 @@ class _SaleEditorState extends State<_SaleEditor>{
   double _factor(_SaleProduct p)=>saleUnit=='باليطة'?p.palletCount.toDouble():1;
   String _money(double n)=>_formatDzd(n);
   void _add(){
-    final p=_product;if(p==null||quantity<=0||price<0)return;
+    final p=_product;if(p==null||!quantity.isFinite||quantity<=0||!price.isFinite||price<0)return;
     if(p.palletCount>0&&quantity!=quantity.roundToDouble()){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('كمية الآجر يجب أن تكون عدداً صحيحاً، سواء بالحبة أو بالباليطة.')));return;}
     final baseQuantity=quantity*_factor(p);
     final old=cart.where((e)=>e.product.id==p.id).fold<double>(0,(s,e)=>s+e.baseQuantity);
