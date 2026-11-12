@@ -17,6 +17,7 @@ class Text extends m.StatelessWidget {
   final m.TextWidthBasis? textWidthBasis;
   final m.TextHeightBehavior? textHeightBehavior;
   final m.Color? selectionColor;
+  final bool translate;
 
   const Text(
     this.data, {
@@ -34,13 +35,14 @@ class Text extends m.StatelessWidget {
     this.textWidthBasis,
     this.textHeightBehavior,
     this.selectionColor,
+    this.translate = true,
   });
 
   @override
   m.Widget build(m.BuildContext context) => m.ValueListenableBuilder<String>(
     valueListenable: AppLanguage.current,
     builder: (context, language, child) => m.Text(
-      AppLanguage.translate(data),
+      translate ? AppLanguage.translate(data) : data,
       key: m.ValueKey(language),
       style: style,
       strutStyle: strutStyle,
@@ -51,7 +53,7 @@ class Text extends m.StatelessWidget {
       overflow: overflow,
       textScaler: textScaler,
       maxLines: maxLines,
-      semanticsLabel: semanticsLabel == null ? null : AppLanguage.translate(semanticsLabel!),
+      semanticsLabel: semanticsLabel == null ? null : (translate ? AppLanguage.translate(semanticsLabel!) : semanticsLabel!),
       textWidthBasis: textWidthBasis,
       textHeightBehavior: textHeightBehavior,
       selectionColor: selectionColor,
