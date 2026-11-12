@@ -124,10 +124,10 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
         keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
         decoration: InputDecoration(labelText: AppLanguage.translate(label), helperText: helper == null ? null : AppLanguage.translate(helper)),
         validator: (value) {
-          if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
+          if (value == null || value.trim().isEmpty) return AppLanguage.translate('هذا الحقل مطلوب');
           if (numeric) {
             final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
-            if (parsed == null || !parsed.isFinite || parsed < 0) return 'أدخل رقماً صحيحاً';
+            if (parsed == null || !parsed.isFinite || parsed < 0) return AppLanguage.translate('أدخل رقماً صحيحاً');
           }
           return null;
         },
@@ -352,7 +352,7 @@ class _StockCountDialogState extends State<_StockCountDialog> {
               validator: (value) {
                 final parsed = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
                 if (parsed == null || !parsed.isFinite || parsed < 0) {
-                  return 'أدخل كمية صحيحة ولا تكون سالبة';
+                  return AppLanguage.translate('أدخل كمية صحيحة ولا تكون سالبة');
                 }
                 return null;
               },
@@ -365,7 +365,7 @@ class _StockCountDialogState extends State<_StockCountDialog> {
                 hintText: AppLanguage.translate('مثلاً: جرد دوري، تلف، كسر أو فرق في العد'),
               ),
               validator: (value) => value == null || value.trim().isEmpty
-                  ? 'اكتب سبب التسوية'
+                  ? AppLanguage.translate('اكتب سبب التسوية')
                   : null,
             ),
           ],
