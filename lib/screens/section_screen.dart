@@ -32,7 +32,6 @@ class _SectionScreenState extends State<SectionScreen> {
   final _search = TextEditingController();
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
-  String _language = 'ar';
   bool _saving = false;
   String _kind = '';
   String _storageKey = '';
@@ -1110,6 +1109,7 @@ class _SettingsPanel extends StatefulWidget {
 }
 
 class _SettingsPanelState extends State<_SettingsPanel> {
+  String _language = 'ar';
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _address = TextEditingController();
