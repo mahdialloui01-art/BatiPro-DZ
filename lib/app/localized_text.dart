@@ -41,6 +41,7 @@ class Text extends m.StatelessWidget {
     valueListenable: AppLanguage.current,
     builder: (context, language, child) => m.Text(
       AppLanguage.translate(data),
+      key: m.ValueKey(language),
       style: style,
       strutStyle: strutStyle,
       textAlign: textAlign,
