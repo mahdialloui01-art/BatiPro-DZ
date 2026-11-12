@@ -1047,6 +1047,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                         },
                       )
                     : TextFormField(
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BatiProTheme.ink, height: 1.45),
                         controller: _controllers[field.key],
                         keyboardType: field.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
                         decoration: InputDecoration(
