@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' hide Text;
 import '../app/localized_text.dart';
 
 import '../data/app_storage.dart';
+import '../app/app_language.dart';
 import '../data/pos_drawer_service.dart';
 
 /// Windows POS device setup. USB HID barcode scanners act as keyboards.
@@ -209,7 +210,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
   );
 
   InputDecoration _decoration(String label, IconData icon) => InputDecoration(
-    labelText: label,
+    labelText: AppLanguage.translate(label),
     prefixIcon: Icon(icon),
     border: const OutlineInputBorder(),
   );
@@ -281,7 +282,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
               Row(children: [
                 Expanded(child: DropdownButtonFormField<String>(
                   value: _pulseOn,
-                  decoration: const InputDecoration(labelText: 'مدة النبضة ON', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: AppLanguage.translate('مدة النبضة ON'), border: OutlineInputBorder()),
                   items: const ['10', '20', '25', '30', '40', '50'].map((v) =>
                     DropdownMenuItem(value: v, child: Text('$v × 2 ms'))).toList(),
                   onChanged: _busy ? null : (v) => setState(() => _pulseOn = v ?? '25'),
@@ -289,7 +290,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
                 const SizedBox(width: 8),
                 Expanded(child: DropdownButtonFormField<String>(
                   value: _pulseOff,
-                  decoration: const InputDecoration(labelText: 'مدة النبضة OFF', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: AppLanguage.translate('مدة النبضة OFF'), border: OutlineInputBorder()),
                   items: const ['100', '150', '200', '250', '300'].map((v) =>
                     DropdownMenuItem(value: v, child: Text('$v × 2 ms'))).toList(),
                   onChanged: _busy ? null : (v) => setState(() => _pulseOff = v ?? '250'),
@@ -302,7 +303,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
               Row(children: [
                 Expanded(child: DropdownButtonFormField<String>(
                   value: _ports.contains(_selectedPort) ? _selectedPort : null,
-                  decoration: const InputDecoration(labelText: 'منفذ USB / COM', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: AppLanguage.translate('منفذ USB / COM'), border: OutlineInputBorder()),
                   items: _ports.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                   onChanged: _busy ? null : (v) => setState(() => _selectedPort = v),
                 )),
@@ -312,7 +313,7 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _baud,
-                decoration: const InputDecoration(labelText: 'سرعة الاتصال Baud rate', border: OutlineInputBorder()),
+                decoration: InputDecoration(labelText: AppLanguage.translate('سرعة الاتصال Baud rate'), border: OutlineInputBorder()),
                 items: const ['1200', '2400', '4800', '9600', '19200', '38400', '57600', '115200'].map((v) =>
                   DropdownMenuItem(value: v, child: Text(v))).toList(),
                 onChanged: _busy ? null : (v) => setState(() => _baud = v ?? '9600'),
@@ -321,10 +322,10 @@ class _PosPeripheralsPanelState extends State<PosPeripheralsPanel> {
               TextField(
                 controller: _hexController,
                 enabled: !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'أمر الفتح HEX',
-                  hintText: 'مثال شكلي: 1B 70 00 19 FA',
-                  helperText: 'أدخل الأمر المحدد في دليل وحدة USB فقط؛ لا تستعمل مثالاً عشوائياً.',
+                decoration: InputDecoration(
+                  labelText: AppLanguage.translate('أمر الفتح HEX'),
+                  hintText: AppLanguage.translate('مثال شكلي: 1B 70 00 19 FA'),
+                  helperText: AppLanguage.translate('أدخل الأمر المحدد في دليل وحدة USB فقط؛ لا تستعمل مثالاً عشوائياً.'),
                   border: OutlineInputBorder(),
                 ),
               ),
