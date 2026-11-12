@@ -205,7 +205,9 @@ class _SalesPanelState extends State<_SalesPanel> {
         add(hour.toString().padLeft(2, '0'), DateTime(now.year, now.month, now.day, hour), DateTime(now.year, now.month, now.day, hour + 3));
       }
     } else if (_period == 'الأسبوع') {
-      const days = ['اثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت', 'أحد'];
+      final days = AppLanguage.isFrench
+          ? ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+          : ['اثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت', 'أحد'];
       final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
       for (var i = 0; i < 7; i++) {
         final start = monday.add(Duration(days: i));
@@ -218,7 +220,9 @@ class _SalesPanelState extends State<_SalesPanel> {
         add('$i', start, start.add(const Duration(days: 1)), showLabel: i == 1 || i % 5 == 0 || i == days);
       }
     } else {
-      const months = ['جان', 'فيف', 'مار', 'أفر', 'ماي', 'جوان', 'جويل', 'أوت', 'سبت', 'أكت', 'نوف', 'ديس'];
+      final months = AppLanguage.isFrench
+          ? ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+          : ['جان', 'فيف', 'مار', 'أفر', 'ماي', 'جوان', 'جويل', 'أوت', 'سبت', 'أكت', 'نوف', 'ديس'];
       for (var month = 1; month <= 12; month++) {
         add(months[month - 1], DateTime(now.year, month, 1), DateTime(now.year, month + 1, 1));
       }
