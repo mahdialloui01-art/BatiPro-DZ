@@ -118,7 +118,7 @@ class _SellerAccessScreenState extends State<SellerAccessScreen> {
                   ),
                 ]),
               ),
-              const Expanded(child: SalesScreen()),
+              Expanded(child: SalesScreen(sellerName: _sellerName)),
             ],
           ),
         ),
