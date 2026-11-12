@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'localized_text.dart';
 import 'app_theme.dart';
 import 'app_language.dart';
@@ -12,13 +13,20 @@ class BatiProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BatiPro DZ',
-      debugShowCheckedModeBanner: false,
-      theme: BatiProTheme.light,
-      home: ValueListenableBuilder<String>(
-        valueListenable: AppLanguage.current,
-        builder: (context, language, child) => Directionality(
+    return ValueListenableBuilder<String>(
+      valueListenable: AppLanguage.current,
+      builder: (context, language, child) => MaterialApp(
+        title: 'BatiPro DZ',
+        debugShowCheckedModeBanner: false,
+        theme: BatiProTheme.light,
+        locale: Locale(language),
+        supportedLocales: const [Locale('ar'), Locale('fr')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Directionality(
           textDirection: language == 'fr' ? TextDirection.ltr : TextDirection.rtl,
           child: AppShell(),
         ),
@@ -146,7 +154,7 @@ class _Sidebar extends StatelessWidget {
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(22, 0, 22, 10),
-              child: Text('القائمة الرئيسية', style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
+              child: Text(AppLanguage.text('القائمة الرئيسية', 'MENU PRINCIPAL'), style: TextStyle(color: Color(0xFF91A5B4), fontSize: 11, fontWeight: FontWeight.w600)),
             ),
             Expanded(
               child: ListView.builder(
@@ -185,7 +193,7 @@ class _Sidebar extends StatelessWidget {
               child: const Row(children: [
                 Icon(Icons.cloud_off_outlined, color: BatiProTheme.gold, size: 19),
                 SizedBox(width: 9),
-                Expanded(child: Text('وضع العمل دون إنترنت', style: TextStyle(color: Colors.white, fontSize: 11))),
+                Expanded(child: Text(AppLanguage.text('وضع العمل دون إنترنت', 'Mode hors ligne'), style: TextStyle(color: Colors.white, fontSize: 11))),
                 Icon(Icons.circle, color: Color(0xFF48B58B), size: 8),
               ]),
             ),
@@ -205,9 +213,9 @@ class _MoreSectionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final groups = <({String title, String subtitle, List<int> indexes})>[
-      (title: 'البيع والشراء', subtitle: 'فواتير البيع وشراء السلع من الموردين', indexes: [3, 7]),
-      (title: 'العلاقات التجارية', subtitle: 'إدارة الأشخاص المتعاملين معك', indexes: [4, 5]),
-      (title: 'التنظيم والتحليل', subtitle: 'رتّب العمل وراقب النتائج', indexes: [6, 8, 9]),
+      (title: AppLanguage.text('البيع والشراء', 'Ventes et achats'), subtitle: AppLanguage.text('فواتير البيع وشراء السلع من الموردين', 'Factures de vente et achats auprès des fournisseurs'), indexes: [3, 7]),
+      (title: AppLanguage.text('العلاقات التجارية', 'Relations commerciales'), subtitle: AppLanguage.text('إدارة الأشخاص المتعاملين معك', 'Gestion des clients et fournisseurs'), indexes: [4, 5]),
+      (title: AppLanguage.text('التنظيم والتحليل', 'Organisation et analyse'), subtitle: AppLanguage.text('رتّب العمل وراقب النتائج', 'Organisez votre activité et suivez les résultats'), indexes: [6, 8, 9]),
     ];
     return SafeArea(
       child: Container(
@@ -235,9 +243,9 @@ class _MoreSectionsSheet extends StatelessWidget {
                       const Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('المزيد من BatiPro', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
+                          Text(AppLanguage.text('المزيد من BatiPro', 'Plus de BatiPro'), style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: BatiProTheme.ink)),
                           SizedBox(height: 4),
-                          Text('جميع أدوات إدارة محل مواد البناء', style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
+                          Text(AppLanguage.text('جميع أدوات إدارة محل مواد البناء', 'Tous les outils de gestion du magasin de matériaux'), style: TextStyle(fontSize: 11, color: BatiProTheme.muted)),
                         ],
                       )),
                       IconButton(
@@ -285,7 +293,7 @@ class _MoreSectionsSheet extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 13),
                                 Expanded(child: Text(items[index].label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: BatiProTheme.ink))),
-                                const Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
+                                const Icon(AppLanguage.isFrench ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 14, color: BatiProTheme.muted),
                               ]),
                             ),
                           ),
@@ -302,7 +310,7 @@ class _MoreSectionsSheet extends StatelessWidget {
                     child: const Row(children: [
                       Icon(Icons.cloud_off_rounded, color: BatiProTheme.gold, size: 19),
                       SizedBox(width: 10),
-                      Expanded(child: Text('تقدر تخدم على بياناتك حتى بدون إنترنت', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
+                      Expanded(child: Text(AppLanguage.text('تقدر تخدم على بياناتك حتى بدون إنترنت', 'Travaillez sur vos données même sans connexion Internet'), style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       Icon(Icons.check_circle_rounded, color: Color(0xFF58C99B), size: 16),
                     ]),
                   ),
