@@ -37,7 +37,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int selected = 0;
 
-  static final sections = [
+  static List<_NavItem> get sections => [
     _NavItem(AppLanguage.isFrench ? 'Tableau de bord' : 'لوحة القيادة', Icons.grid_view_rounded),
     _NavItem(AppLanguage.isFrench ? 'Produits et stock' : 'المنتجات والمخزون', Icons.inventory_2_outlined),
     _NavItem(AppLanguage.isFrench ? 'Ventes et factures' : 'المبيعات والفواتير', Icons.point_of_sale_rounded),
@@ -92,7 +92,7 @@ class _AppShellState extends State<AppShell> {
               setState(() => selected = i);
             }
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: AppLanguage.isFrench ? 'Accueil' : 'الرئيسية'),
             NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: AppLanguage.isFrench ? 'Stock' : 'المخزون'),
             NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: AppLanguage.isFrench ? 'Ventes' : 'المبيعات'),
