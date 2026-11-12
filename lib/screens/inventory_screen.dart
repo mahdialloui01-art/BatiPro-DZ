@@ -336,10 +336,10 @@ class _StockCountDialogState extends State<_StockCountDialog> {
           children: [
             Align(
               alignment: Alignment.centerRight,
-              child: Text('المادة: ${widget.product.name}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              child: Text(AppLanguage.translate('المادة: ') + widget.product.name, translate: false, style: const TextStyle(fontWeight: FontWeight.w800)),
             ),
             const SizedBox(height: 8),
-            Text('الرصيد الحالي: ${widget.product.quantity} ${widget.product.unit}'),
+            Text(AppLanguage.translate('الرصيد الحالي: ') + '${widget.product.quantity} ${AppLanguage.translate(widget.product.unit)}', translate: false),
             const SizedBox(height: 12),
             TextFormField(
               controller: _quantity,
@@ -592,7 +592,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         delta >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
                         color: delta >= 0 ? BatiProTheme.green : BatiProTheme.red,
                       ),
-                      title: Text((item['productName'] ?? 'مادة').toString()),
+                      title: Text((item['productName'] ?? 'مادة').toString(), translate: false),
                       subtitle: Text(
                         '${item['reason'] ?? ''} • ${date.length >= 16 ? date.substring(0, 16).replaceFirst('T', ' ') : date}\\n'
                         '${item['previousQuantity'] != null ? 'قبل: ${item['previousQuantity']} • بعد: ${item['countedQuantity']}' : 'المرجع: ${item['referenceId'] ?? '—'}'}',
@@ -618,7 +618,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Future<void> _delete(_Product p) async {
     final yes = await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('حذف المنتج؟'),content:Text('سيتم حذف ${p.name} من القائمة.'),
+      title:const Text('حذف المنتج؟'),content:Text(AppLanguage.translate('سيتم حذف ') + p.name + AppLanguage.translate(' من القائمة.'), translate: false),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]));
     if(yes==true){setState(()=>_products.removeWhere((e)=>e.id==p.id));await _save();}
   }
@@ -706,7 +706,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         if(_activeGroup != null) ...[
           const SizedBox(height:12),
           Row(children:[
-            Expanded(child:Text('أنواع ${_activeGroup!}',style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
+            Expanded(child:Text(AppLanguage.translate('أنواع ') + AppLanguage.translate(_activeGroup!),translate:false,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink))),
             TextButton(onPressed:()=>setState((){_activeGroup=null;_filter='الكل';}),child:const Text('إظهار الكل')),
           ]),
           Wrap(spacing:7,runSpacing:7,children:[
@@ -728,7 +728,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         else ..._visible.map((p)=>Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
           Container(width:42,height:42,decoration:BoxDecoration(color:BatiProTheme.gold.withValues(alpha:.14),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.inventory_2_outlined,color:BatiProTheme.ink)),
           const SizedBox(width:11),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(p.name,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
+            Text(p.name,translate:false,style:const TextStyle(fontWeight:FontWeight.w800,color:BatiProTheme.ink)),
             Text('${p.category} • ${p.unit} | شراء: ${_money(p.purchasePrice)} | بيع: ${_money(p.salePrice)}${(p.palletCount ?? 0) > 0 ? ' | الباليطة: ${p.palletCount} حبة' : ''}',style:const TextStyle(fontSize:10,color:BatiProTheme.muted)),
             const SizedBox(height:5),Text('المتوفر: ${p.quantity} ${p.unit} • حد التنبيه: ${p.minimum}',style:TextStyle(fontSize:11,color:p.quantity<=p.minimum?BatiProTheme.red:BatiProTheme.green,fontWeight:FontWeight.w700)),
           ])),
