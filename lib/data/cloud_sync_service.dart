@@ -165,6 +165,8 @@ class CloudSyncService {
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
     final keepLocalUntil = Map<String, dynamic>.from(metadata['keep_local_until'] as Map? ?? {});
+    final pendingMutations = (metadata['pending_mutations'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     if ((metadata['conflicts'] as List? ?? const []).isNotEmpty) {
       throw StateError('يوجد تعارض محفوظ. اختر النسخة التي تريد الاحتفاظ بها أولاً.');
     }
