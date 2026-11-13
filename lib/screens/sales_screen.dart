@@ -671,7 +671,11 @@ $text | Out-Printer -Name $name
   }
   Widget _detail(String a,String b,[Color? color])=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[Expanded(child:Text(a,style:const TextStyle(color:BatiProTheme.muted,fontSize:12))),Text(b,style:TextStyle(fontWeight:FontWeight.bold,color:color??BatiProTheme.ink))]));
   @override Widget build(BuildContext context){
-    if (widget.sellerName != null) return _sellerPosLayout();
+    if (widget.sellerName != null) {
+      return SafeArea(child: loading
+          ? const Center(child: CircularProgressIndicator())
+          : _sellerPosLayout());
+    }
     final total=invoices.fold<double>(0,(s,e)=>s+e.total),paid=invoices.fold<double>(0,(s,e)=>s+e.paid),debt=invoices.fold<double>(0,(s,e)=>s+e.due);
     return SafeArea(child:loading?const Center(child:CircularProgressIndicator()):LayoutBuilder(builder:(context,c){
       final compact=c.maxWidth<650;
