@@ -37,12 +37,15 @@ class CloudSyncService {
     Map<String, dynamic> documents, {
     Map<String, dynamic>? keepLocalUntil,
     List<Map<String, dynamic>>? conflicts,
+    List<Map<String, dynamic>>? pendingMutations,
   }) async {
     final data = <String, dynamic>{
       'cursor': cursor,
       'documents': documents,
       'keep_local_until': keepLocalUntil ?? <String, dynamic>{},
       if (conflicts != null && conflicts.isNotEmpty) 'conflicts': conflicts,
+      if (pendingMutations != null && pendingMutations.isNotEmpty)
+        'pending_mutations': pendingMutations,
     };
     await storage.setString(_metadataKey, jsonEncode(data));
   }
@@ -113,6 +116,8 @@ class CloudSyncService {
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
     final keepLocalUntil = Map<String, dynamic>.from(metadata['keep_local_until'] as Map? ?? {});
+    final pendingMutations = (metadata['pending_mutations'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     final conflicts = (metadata['conflicts'] as List? ?? const [])
         .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     final index = conflicts.indexWhere((item) => item['key'] == key);
@@ -144,6 +149,8 @@ class CloudSyncService {
       documents,
       keepLocalUntil: keepLocalUntil,
       conflicts: conflicts,
+      pendingMutations: (metadata['pending_mutations'] as List? ?? const [])
+          .map((item) => Map<String, dynamic>.from(item as Map)).toList(),
     );
   }
 
@@ -209,33 +216,45 @@ class CloudSyncService {
 
     final localKeys = storage.getKeys().where(eligible).toSet();
     final knownKeys = documents.keys.toSet();
-    final mutations = <Map<String, dynamic>>[];
-    final mutationValues = <String, Map<String, dynamic>>{};
+    final pendingKeys = pendingMutations.map((item) => item['key'] as String).toSet();
 
+    // Persist each mutation ID before sending it. If the response is lost after
+    // PostgreSQL commits, the next attempt reuses the same ID and is idempotent.
     for (final key in localKeys) {
+      if (pendingKeys.contains(key)) continue;
       final value = storage.getString(key);
       final known = documents[key] is Map
           ? Map<String, dynamic>.from(documents[key] as Map)
           : <String, dynamic>{'revision': 0, 'value': null, 'deleted': true};
       if (value == null || (known['deleted'] != true && known['value'] == value)) continue;
-      final mutationId = _newId();
-      mutations.add({
-        'mutation_id': mutationId, 'key': key, 'value': value,
+      pendingMutations.add({
+        'mutation_id': _newId(), 'key': key, 'value': value,
         'deleted': false, 'base_revision': (known['revision'] as num?)?.toInt() ?? 0,
       });
-      mutationValues[mutationId] = {'key': key, 'value': value, 'deleted': false};
+      pendingKeys.add(key);
     }
 
     for (final key in knownKeys.difference(localKeys)) {
+      if (pendingKeys.contains(key)) continue;
       final known = Map<String, dynamic>.from(documents[key] as Map);
       if (known['deleted'] == true) continue;
-      final mutationId = _newId();
-      mutations.add({
-        'mutation_id': mutationId, 'key': key, 'value': null,
+      pendingMutations.add({
+        'mutation_id': _newId(), 'key': key, 'value': null,
         'deleted': true, 'base_revision': (known['revision'] as num?)?.toInt() ?? 0,
       });
-      mutationValues[mutationId] = {'key': key, 'value': null, 'deleted': true};
+      pendingKeys.add(key);
     }
+
+    await _saveMetadata(storage, cursor, documents,
+        keepLocalUntil: keepLocalUntil, pendingMutations: pendingMutations);
+    final mutations = List<Map<String, dynamic>>.from(pendingMutations);
+    final mutationValues = <String, Map<String, dynamic>>{
+      for (final mutation in mutations)
+        mutation['mutation_id'] as String: {
+          'key': mutation['key'], 'value': mutation['value'],
+          'deleted': mutation['deleted'],
+        },
+    };
 
     var pushed = 0;
     for (var offset = 0; offset < mutations.length; offset += 10) {
@@ -243,18 +262,26 @@ class CloudSyncService {
       final response = await api.pushSyncChanges(deviceId: deviceId, mutations: batch);
       final accepted = (response['accepted'] as List? ?? const [])
           .map((item) => Map<String, dynamic>.from(item as Map));
+      final acceptedIds = <String>{};
       for (final item in accepted) {
-        final mutation = mutationValues[item['mutation_id']];
+        final mutationId = item['mutation_id'] as String;
+        final mutation = mutationValues[mutationId];
         if (mutation == null) continue;
+        acceptedIds.add(mutationId);
         documents[mutation['key'] as String] = {
           'revision': (item['revision'] as num).toInt(),
           'value': mutation['value'], 'deleted': mutation['deleted'],
         };
         pushed++;
       }
-      await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil);
+      pendingMutations.removeWhere((item) => acceptedIds.contains(item['mutation_id']));
+      await _saveMetadata(storage, cursor, documents,
+          keepLocalUntil: keepLocalUntil, pendingMutations: pendingMutations);
       final conflicts = (response['conflicts'] as List? ?? const []);
       if (conflicts.isNotEmpty) {
+        final conflictIds = conflicts.map((raw) =>
+            (raw as Map)['mutation_id'] as String).toSet();
+        pendingMutations.removeWhere((item) => conflictIds.contains(item['mutation_id']));
         final pending = <Map<String, dynamic>>[];
         var mergedAny = false;
         for (final raw in conflicts) {
@@ -293,7 +320,8 @@ class CloudSyncService {
           }
         }
         if (pending.isNotEmpty) metadata['conflicts'] = pending;
-        await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil, conflicts: pending);
+        await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil,
+            conflicts: pending, pendingMutations: pendingMutations);
         if (mergedAny && pending.isEmpty) {
           throw StateError('دمجنا السجلات الجديدة غير المتعارضة. أعد المزامنة لإرسال الدمج إلى الخادم.');
         }
@@ -362,12 +390,14 @@ class CloudSyncService {
         pulled++;
       }
       cursor = processedCursor;
-      await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
+      await _saveMetadata(storage, cursor, documents,
+          keepLocalUntil: keepLocalUntil, pendingMutations: pendingMutations);
       pages++;
       if (page['has_more'] != true || pages > 1000) break;
     }
 
-    await storage.setString(_metadataKey, jsonEncode({'cursor': cursor, 'documents': documents}));
+    await _saveMetadata(storage, cursor, documents,
+        keepLocalUntil: keepLocalUntil, pendingMutations: pendingMutations);
     return {'pushed': pushed, 'pulled': pulled, 'cursor': cursor, 'device_id': deviceId};
     } finally {
       _isRunning = false;
