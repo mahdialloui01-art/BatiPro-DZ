@@ -1458,7 +1458,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           label: const Text('حفظ عنوان الخادم'),
         )),
         const SizedBox(height: 12),
-        _field(_apiEmail, 'البريد الإلكتروني', icon: Icons.email_outlined),
+        _field(_apiEmail, 'اسم المستخدم أو البريد الإلكتروني', icon: Icons.email_outlined),
         _field(_apiPassword, 'كلمة مرور حساب BatiPro', icon: Icons.lock_outline),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: _apiBusy ? null : _loginApi,
