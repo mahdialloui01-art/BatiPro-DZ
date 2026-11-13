@@ -22,9 +22,7 @@ class _AccountGateState extends State<AccountGate> {
 
   final _pin = TextEditingController();
   final _managerPin = TextEditingController();
-  final _sellerPin = TextEditingController();
   final _confirmManager = TextEditingController();
-  final _confirmSeller = TextEditingController();
   final _sellerUsername = TextEditingController();
   final _sellerPassword = TextEditingController();
   String _sellerName = 'البائع';
@@ -46,9 +44,7 @@ class _AccountGateState extends State<AccountGate> {
   void dispose() {
     _pin.dispose();
     _managerPin.dispose();
-    _sellerPin.dispose();
     _confirmManager.dispose();
-    _confirmSeller.dispose();
     _sellerUsername.dispose();
     _sellerPassword.dispose();
     super.dispose();
