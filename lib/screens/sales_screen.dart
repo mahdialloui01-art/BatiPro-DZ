@@ -94,6 +94,44 @@ class _SalesScreenState extends State<SalesScreen> {
       if(s!=null)products=(jsonDecode(s) as List).map((e)=>_SaleProduct.fromJson(Map<String,dynamic>.from(e as Map))).toList();
       if(v!=null)invoices=(jsonDecode(v) as List).map((e)=>_SaleInvoice.fromJson(Map<String,dynamic>.from(e as Map))).toList();
     }catch(_){if(mounted)_toast('تعذر قراءة البيانات المحفوظة.');}
+    if (ApiClient.instance.isAuthenticated) {
+      try {
+        final profile = await ApiClient.instance.me();
+        if (['owner', 'admin', 'manager'].contains(profile['role']?.toString())) {
+          final remoteSales = await ApiClient.instance.sales();
+          invoices = remoteSales.map((row) {
+            final items = (row['items'] as List? ?? const []).map((raw) {
+              final line = Map<String, dynamic>.from(raw as Map);
+              final quantity = double.tryParse(line['quantity'].toString()) ?? 0;
+              final unitPrice = (double.tryParse(line['unit_price'].toString()) ?? 0) * 100;
+              final lineTotal = (double.tryParse(line['line_total'].toString()) ?? 0) * 100;
+              return <String, dynamic>{
+                'productId': line['product_id'].toString(),
+                'name': line['name']?.toString() ?? '',
+                'unit': line['unit']?.toString() ?? '',
+                'quantity': quantity,
+                'displayQuantity': quantity,
+                'displayUnit': line['unit']?.toString() ?? '',
+                'price': unitPrice.round(),
+                'total': lineTotal.round(),
+              };
+            }).toList();
+            return _SaleInvoice(
+              row['invoice_number']?.toString() ?? row['id'].toString(),
+              row['client']?.toString() ?? 'زبون نقدي',
+              'بيع مشترك',
+              DateTime.parse(row['date'].toString()),
+              ((double.tryParse(row['total'].toString()) ?? 0) * 100).roundToDouble(),
+              ((double.tryParse(row['paid'].toString()) ?? 0) * 100).roundToDouble(),
+              items,
+              seller: row['seller']?.toString() ?? '',
+            );
+          }).toList();
+        }
+      } catch (error) {
+        if (mounted) _toast('تعذر تحديث سجل المبيعات المشترك: $error');
+      }
+    }
     invoices.sort((a,b)=>b.date.compareTo(a.date));
     if(mounted)setState(()=>loading=false);
   }
