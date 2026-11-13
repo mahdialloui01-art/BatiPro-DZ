@@ -1510,12 +1510,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           icon: _syncBusy
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.sync),
-          label: const Text('مزامنة التغييرات بين الأجهزة الآن'),
+          label: const Text('مزامنة التغييرات الآن'),
         )),
         const SizedBox(height: 8),
         Text(_syncStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink, height: 1.5)),
         const SizedBox(height: 5),
-        const Text('الاستيراد الأولي ينقل السجل القديم مرة واحدة. زر المزامنة يرسل التعديلات المحلية ويستقبل تغييرات الأجهزة الأخرى. عند تعديل نفس القسم على جهازين، تتوقف المزامنة وتبلغك بالتعارض بدلاً من الكتابة فوق البيانات بصمت.',
+        const Text('بعد الاستيراد الأولي، يحاول البرنامج مزامنة تغييرات SQLite تلقائياً كل 20 ثانية وعند الرجوع للتطبيق. إذا انقطع الاتصال تبقى التغييرات محلياً وتُعاد المحاولة؛ ويمكنك تشغيل المزامنة يدوياً. عند تعديل نفس السجل من جهازين يظهر تعارض للحل بدلاً من الكتابة فوق البيانات بصمت.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
         const SizedBox(height: 12),
         const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
