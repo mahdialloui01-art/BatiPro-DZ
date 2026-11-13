@@ -240,8 +240,8 @@ class _AccountGateState extends State<AccountGate> {
                       const SizedBox(height: 6),
                       Text(
                         french
-                            ? 'Créez un code distinct pour le responsable et le vendeur.'
-                            : 'أنشئ رمزاً خاصاً بالمسؤول ورمزاً مختلفاً بالبائع. هذه الخطوة تتم مرة واحدة.',
+                            ? 'Créez le code du responsable. Les vendeurs utilisent leurs comptes du serveur.'
+                            : 'أنشئ رمز المسؤول. البائعون يدخلون بأسماء المستخدمين وكلمات المرور التي ينشئها المسؤول.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 12, color: BatiProTheme.muted),
                       ),
