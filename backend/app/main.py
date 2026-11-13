@@ -617,7 +617,7 @@ async def list_sales(limit: int = Query(default=500, ge=1, le=1000), user=Depend
     async with _pool().connection() as connection:
         rows = await (await connection.execute(
             """SELECT si.id,si.invoice_number,si.invoice_date,si.subtotal,si.discount,
-                      si.total,si.paid,COALESCE(c.name,'زبون نقدي'),
+                      si.total,si.paid,COALESCE(c.name,NULLIF(trim(split_part(split_part(si.notes,'الزبون: ',2),' |',1)),''),'زبون نقدي'),
                       COALESCE(u.display_name,''),
                       COALESCE(si.notes,'')
                FROM sales_invoices si
