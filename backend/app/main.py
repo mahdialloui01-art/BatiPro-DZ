@@ -612,6 +612,40 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_writer)):
             "due":str(total-body.paid)}
 
 
+@app.get("/sales", tags=["sales"])
+async def list_sales(limit: int = Query(default=500, ge=1, le=1000), user=Depends(_current_user)):
+    async with _pool().connection() as connection:
+        rows = await (await connection.execute(
+            """SELECT si.id,si.invoice_number,si.invoice_date,si.subtotal,si.discount,
+                      si.total,si.paid,COALESCE(c.name,'زبون نقدي'),
+                      COALESCE(u.display_name,''),
+                      COALESCE(si.notes,'')
+               FROM sales_invoices si
+               LEFT JOIN customers c ON c.id=si.customer_id
+               LEFT JOIN users u ON u.id=si.created_by
+               WHERE si.organization_id=%s AND si.status='posted'
+                 AND (%s <> 'cashier' OR si.created_by=%s)
+               ORDER BY si.invoice_date DESC LIMIT %s""",
+            (user["organization_id"],user["role"],user["user_id"],limit))).fetchall()
+        result = []
+        for row in rows:
+            lines = await (await connection.execute(
+                """SELECT sl.product_id,p.name,sl.quantity,sl.unit,sl.unit_price,sl.line_total
+                   FROM sales_lines sl JOIN products p ON p.id=sl.product_id
+                   WHERE sl.organization_id=%s AND sl.sales_invoice_id=%s
+                   ORDER BY sl.created_at,sl.id""",
+                (user["organization_id"],row[0]))).fetchall()
+            result.append({
+                "id":str(row[0]),"invoice_number":row[1],"date":row[2].isoformat(),
+                "subtotal":str(row[3]),"discount":str(row[4]),"total":str(row[5]),
+                "paid":str(row[6]),"client":row[7],"seller":row[8],"notes":row[9],
+                "items":[{"product_id":str(line[0]),"name":line[1],"quantity":str(line[2]),
+                          "unit":line[3],"unit_price":str(line[4]),"line_total":str(line[5])}
+                         for line in lines],
+            })
+    return result
+
+
 @app.post("/sales", status_code=status.HTTP_201_CREATED, tags=["sales"])
 async def create_sale(body: SaleCreate, user=Depends(_sales_writer)):
     for line in body.lines:
