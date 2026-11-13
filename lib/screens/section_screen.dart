@@ -9,6 +9,7 @@ import '../data/backup_service.dart';
 import '../data/api_client.dart';
 import '../data/initial_sync_service.dart';
 import '../data/cloud_sync_service.dart';
+import 'seller_accounts_screen.dart';
 import '../app/app_theme.dart';
 import '../widgets/pos_peripherals_panel.dart';
 
@@ -1484,6 +1485,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             Expanded(child: Text(_apiStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink))),
           ]),
         ),
+        if (ApiClient.instance.isAuthenticated) ...[
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: _apiBusy ? null : () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SellerAccountsScreen()),
+            ),
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('إدارة حسابات البيع وإضافة بائعين'),
+          )),
+        ],
         const SizedBox(height: 12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runInitialSync,
