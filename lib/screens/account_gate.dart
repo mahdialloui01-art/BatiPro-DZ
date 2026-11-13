@@ -19,7 +19,6 @@ class AccountGate extends StatefulWidget {
 class _AccountGateState extends State<AccountGate> {
   static const _storage = FlutterSecureStorage();
   static const _managerPinKey = 'batipro_manager_pin_v1';
-  static const _sellerPinKey = 'batipro_seller_pin_v1';
 
   final _pin = TextEditingController();
   final _managerPin = TextEditingController();
@@ -58,10 +57,9 @@ class _AccountGateState extends State<AccountGate> {
   Future<void> _load() async {
     try {
       final manager = await _storage.read(key: _managerPinKey);
-      final seller = await _storage.read(key: _sellerPinKey);
       if (!mounted) return;
       setState(() {
-        _setupRequired = manager == null || seller == null;
+        _setupRequired = manager == null;
         _loading = false;
       });
     } catch (_) {
@@ -83,17 +81,12 @@ class _AccountGateState extends State<AccountGate> {
   Future<void> _savePins() async {
     if (_busy) return;
     final manager = _managerPin.text;
-    final seller = _sellerPin.text;
-    if (!_validPin(manager) || !_validPin(seller)) {
+    if (!_validPin(manager)) {
       setState(() => _error = 'كل رمز لازم يكون من 4 إلى 8 أرقام.');
       return;
     }
-    if (manager != _confirmManager.text || seller != _confirmSeller.text) {
+    if (manager != _confirmManager.text) {
       setState(() => _error = 'تأكيد الرموز غير مطابق.');
-      return;
-    }
-    if (manager == seller) {
-      setState(() => _error = 'اختار رمزاً مختلفاً لكل حساب.');
       return;
     }
 
@@ -103,14 +96,13 @@ class _AccountGateState extends State<AccountGate> {
     });
     try {
       await _storage.write(key: _managerPinKey, value: manager);
-      await _storage.write(key: _sellerPinKey, value: seller);
       if (!mounted) return;
       setState(() {
         _setupRequired = false;
         _role = null;
         _pin.clear();
       });
-      _message('تم إعداد رمزي المسؤول والبائع. احتفظ بهما في مكان آمن.');
+      _message('تم إعداد رمز المسؤول. حسابات البائعين تدخل ببياناتها الخاصة على الخادم.');
     } catch (_) {
       if (mounted) setState(() => _error = 'تعذر حفظ الرموز في التخزين الآمن.');
     } finally {
@@ -266,13 +258,6 @@ class _AccountGateState extends State<AccountGate> {
                           ? 'Confirmer le code du responsable'
                           : 'تأكيد كود المسؤول'),
                       const SizedBox(height: 14),
-                      _pinField(_sellerPin, french
-                          ? 'Code du vendeur (4 à 8 chiffres)'
-                          : 'كود البائع (4 إلى 8 أرقام)'),
-                      const SizedBox(height: 9),
-                      _pinField(_confirmSeller, french
-                          ? 'Confirmer le code du vendeur'
-                          : 'تأكيد كود البائع'),
                       if (_error != null) _errorText(),
                       const SizedBox(height: 16),
                       FilledButton(
