@@ -116,8 +116,6 @@ class CloudSyncService {
     final metadata = _readMetadata(storage);
     final documents = Map<String, dynamic>.from(metadata['documents'] as Map? ?? {});
     final keepLocalUntil = Map<String, dynamic>.from(metadata['keep_local_until'] as Map? ?? {});
-    final pendingMutations = (metadata['pending_mutations'] as List? ?? const [])
-        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     final conflicts = (metadata['conflicts'] as List? ?? const [])
         .map((item) => Map<String, dynamic>.from(item as Map)).toList();
     final index = conflicts.indexWhere((item) => item['key'] == key);
