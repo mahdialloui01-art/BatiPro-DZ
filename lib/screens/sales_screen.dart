@@ -6,6 +6,7 @@ import '../app/app_language.dart';
 import '../data/app_storage.dart';
 import '../data/pos_drawer_service.dart';
 import '../app/app_theme.dart';
+import '../data/api_client.dart';
 
 String _formatDzd(double centimes) {
   final fixed = (centimes / 100).toStringAsFixed(2).split('.');
@@ -59,7 +60,8 @@ class _SaleInvoice {
 
 class SalesScreen extends StatefulWidget {
   final String? sellerName;
-  const SalesScreen({super.key, this.sellerName});
+  final bool sharedMode;
+  const SalesScreen({super.key, this.sellerName, this.sharedMode = false});
   @override State<SalesScreen> createState()=>_SalesScreenState();
 }
 class _SalesScreenState extends State<SalesScreen> {
@@ -73,9 +75,19 @@ class _SalesScreenState extends State<SalesScreen> {
   final _posPaid = TextEditingController(text: '0');
   final List<_SaleLine> _posCart = [];
   String _posPayment = 'نقداً';
+  String? _sharedWarehouseId;
   @override void initState(){super.initState();_load();}
   @override void dispose(){search.dispose();_posSearch.dispose();_posClient.dispose();_posPaid.dispose();super.dispose();}
   Future<void> _load() async {
+    if (widget.sharedMode) {
+      try {
+        await _loadSharedData();
+      } catch (error) {
+        if (mounted) _toast('تعذر تحميل بيانات الخادم: $error');
+      }
+      if (mounted) setState(() => loading = false);
+      return;
+    }
     final prefs=await AppStorage.getInstance();
     try{
       final s=prefs.getString(stockKey),v=prefs.getString(salesKey);
@@ -84,6 +96,42 @@ class _SalesScreenState extends State<SalesScreen> {
     }catch(_){if(mounted)_toast('تعذر قراءة البيانات المحفوظة.');}
     invoices.sort((a,b)=>b.date.compareTo(a.date));
     if(mounted)setState(()=>loading=false);
+  }
+
+  Future<void> _loadSharedData() async {
+    final api = ApiClient.instance;
+    final warehouses = await api.warehouses();
+    if (warehouses.isEmpty) throw StateError('لا يوجد مستودع نشط في قاعدة البيانات.');
+    final warehouseId = warehouses.first['id'].toString();
+    final remoteProducts = await api.products();
+    final remoteStock = await api.stock();
+    final quantities = <String, double>{};
+    for (final row in remoteStock) {
+      if (row['warehouse_id']?.toString() == warehouseId) {
+        quantities[row['product_id'].toString()] =
+            double.tryParse(row['quantity'].toString()) ?? 0;
+      }
+    }
+    final converted = <_SaleProduct>[];
+    for (final row in remoteProducts) {
+      final id = row['id'].toString();
+      final price = (double.tryParse(row['sale_price'].toString()) ?? 0) * 100;
+      final raw = <String, dynamic>{
+        'id': id,
+        'name': row['name']?.toString() ?? '',
+        'category': row['category']?.toString() ?? '',
+        'unit': row['base_unit']?.toString() ?? 'وحدة',
+        'salePrice': price.round(),
+        'quantity': quantities[id] ?? 0,
+        'palletCount': 0,
+      };
+      converted.add(_SaleProduct(raw, quantities[id] ?? 0));
+    }
+    if (!mounted) return;
+    setState(() {
+      _sharedWarehouseId = warehouseId;
+      products = converted;
+    });
   }
   Future<void> _persist({List<Map<String, dynamic>>? movements}) async {
     final values = <String, String>{
@@ -154,6 +202,10 @@ class _SalesScreenState extends State<SalesScreen> {
       _posPayment, DateTime.now(), _posTotal, paidAmount,
       _posCart.map((e)=>e.toJson()).toList(), seller: widget.sellerName ?? '',
     );
+    if (widget.sharedMode) {
+      await _saveSharedSale(invoice);
+      return;
+    }
     final prefs = await AppStorage.getInstance();
     final movementRaw = prefs.getString('batipro_stock_movements_v1');
     final movements = <Map<String,dynamic>>[];
@@ -183,6 +235,53 @@ class _SalesScreenState extends State<SalesScreen> {
     await _persist(movements:movements);
     if (invoice.paid > 0) { try { await PosDrawerService.openAfterSale(); } catch (_) {} }
     _toast('تم حفظ الفاتورة وخصم الكمية من المخزون.');
+  }
+
+  Future<void> _saveSharedSale(_SaleInvoice invoice) async {
+    final warehouseId = _sharedWarehouseId;
+    if (warehouseId == null) {
+      _toast('المستودع غير محدد. حدّث بيانات البيع.');
+      return;
+    }
+    try {
+      final result = await ApiClient.instance.createSale({
+        'warehouse_id': warehouseId,
+        'invoice_number': invoice.id,
+        'lines': _posCart.map((line) {
+          final quantity = line.baseQuantity;
+          final basePrice = line.product.price / 100;
+          return {
+            'product_id': line.product.id,
+            'quantity': quantity,
+            'unit': line.product.unit,
+            'unit_price': basePrice.toStringAsFixed(2),
+            'line_total': (quantity * basePrice).toStringAsFixed(2),
+          };
+        }).toList(),
+        'discount': '0.00',
+        'paid': (invoice.paid / 100).toStringAsFixed(2),
+        'notes': 'الزبون: ${invoice.client} | طريقة الدفع: ${invoice.method}',
+      });
+      final savedInvoice = _SaleInvoice(
+        result['id']?.toString() ?? invoice.id,
+        invoice.client, invoice.method, invoice.date, invoice.total,
+        invoice.paid, invoice.items, seller: widget.sellerName ?? '',
+      );
+      if (!mounted) return;
+      setState(() {
+        invoices.insert(0, savedInvoice);
+        _posCart.clear();
+        _posClient.clear();
+        _posPaid.text = '0';
+      });
+      await _loadSharedData();
+      if (invoice.paid > 0) {
+        try { await PosDrawerService.openAfterSale(); } catch (_) {}
+      }
+      _toast('تم تسجيل الفاتورة في قاعدة البيانات المشتركة وخصم المخزون.');
+    } catch (error) {
+      _toast('لم يتم تسجيل البيع. لم تتغير الكمية: $error');
+    }
   }
 
   Widget _sellerPosLayout() {
