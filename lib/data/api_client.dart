@@ -235,6 +235,18 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<List<Map<String, dynamic>>> sales({int limit = 500}) async {
+    final response = await http
+        .get(_uri('/sales').replace(queryParameters: {'limit': '$limit'}),
+            headers: _headers)
+        .timeout(const Duration(seconds: 30));
+    final data = _decode(response)['data'];
+    if (data is List) {
+      return data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }
+    throw const FormatException('صيغة سجل المبيعات غير صحيحة.');
+  }
+
   Future<Map<String, dynamic>> createSale(Map<String, dynamic> invoice) async {
     final response = await http
         .post(_uri('/sales'), headers: _headers, body: jsonEncode(invoice))
