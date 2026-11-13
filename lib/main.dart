@@ -1,12 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'app/batipro_app.dart';
 import 'app/app_language.dart';
 import 'data/app_storage.dart';
 import 'data/backup_service.dart';
 import 'data/api_client.dart';
-import 'data/cloud_sync_service.dart';
+import 'data/auto_sync_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,13 +18,6 @@ Future<void> main() async {
   }
   await ApiClient.instance.initialize();
   runApp(const BatiProApp());
-  if (ApiClient.instance.isAuthenticated) {
-    unawaited(() async {
-      try {
-        await CloudSyncService.synchronize();
-      } catch (_) {
-        // Keep offline startup available; the settings screen reports sync errors.
-      }
-    }());
-  }
+  // Keep SQLite usable offline and retry PostgreSQL sync on resume and periodically.
+  AutoSyncService.instance.start();
 }

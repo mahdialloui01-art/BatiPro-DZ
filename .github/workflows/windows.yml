@@ -2,7 +2,7 @@ name: BatiPro DZ Windows build
 
 on:
   push:
-    branches: [main, feature/postgresql-backend-foundation]
+    branches: [main, feature/postgresql-backend-foundation, feature/android-seller-account]
   pull_request:
     branches: [main]
   workflow_dispatch:

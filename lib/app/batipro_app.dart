@@ -7,6 +7,7 @@ import '../screens/dashboard_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/inventory_screen.dart';
 import '../screens/sales_screen.dart';
+import '../screens/account_gate.dart';
 
 class BatiProApp extends StatelessWidget {
   const BatiProApp({super.key});
@@ -28,7 +29,7 @@ class BatiProApp extends StatelessWidget {
         ],
         home: Directionality(
           textDirection: language == 'fr' ? TextDirection.ltr : TextDirection.rtl,
-          child: AppShell(),
+          child: const AccountGate(),
         ),
       ),
     );
@@ -36,7 +37,8 @@ class BatiProApp extends StatelessWidget {
 }
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  final VoidCallback? onLogout;
+  const AppShell({super.key, this.onLogout});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -70,6 +72,16 @@ class _AppShellState extends State<AppShell> {
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 900;
       return Scaffold(
+        appBar: AppBar(
+          title: const Text('BatiPro DZ'),
+          actions: [
+            IconButton(
+              tooltip: AppLanguage.text('تسجيل الخروج', 'Déconnexion'),
+              onPressed: widget.onLogout,
+              icon: const Icon(Icons.logout_rounded),
+            ),
+          ],
+        ),
         body: Row(
           children: [
             if (wide) _Sidebar(

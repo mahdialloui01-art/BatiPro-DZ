@@ -109,8 +109,14 @@ async def _current_user(authorization: str | None = Header(default=None)):
 
 
 def _writer(user=Depends(_current_user)):
+    if user["role"] not in ("owner", "admin", "manager"):
+        raise HTTPException(status_code=403, detail="Manager permission required")
+    return user
+
+
+def _sales_writer(user=Depends(_current_user)):
     if user["role"] not in ("owner", "admin", "manager", "cashier"):
-        raise HTTPException(status_code=403, detail="Read-only account")
+        raise HTTPException(status_code=403, detail="Sales permission required")
     return user
 
 
@@ -123,8 +129,14 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(min_length=5, max_length=254)
+    email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=128)
+
+
+class SellerCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=40, pattern=r"^[a-zA-Z0-9_.-]+$")
+    display_name: str = Field(min_length=2, max_length=120)
+    password: str = Field(min_length=8, max_length=128)
 
 
 class ProductCreate(BaseModel):
@@ -277,9 +289,10 @@ async def login(body: LoginRequest):
         row = await (await connection.execute(
             """SELECT u.id, u.password_hash, om.organization_id
                FROM users u JOIN organization_members om ON om.user_id = u.id
-               WHERE lower(u.email) = %s AND u.is_active = TRUE
+               WHERE (lower(u.email) = %s OR lower(COALESCE(u.username,'')) = %s)
+                 AND u.is_active = TRUE
                ORDER BY om.created_at LIMIT 1""",
-            (body.email.strip().lower(),))).fetchone()
+            (body.email.strip().lower(), body.email.strip().lower()))).fetchone()
     if row is None or not _verify_password(body.password, row[1]):
         raise HTTPException(status_code=401, detail="Email or password is incorrect")
     return {"access_token": _token_for(str(row[0]), str(row[2])),
@@ -300,6 +313,71 @@ async def me(user=Depends(_current_user)):
     if row is None:
         raise HTTPException(status_code=401, detail="Account is not active")
     return {"email": row[0], "display_name": row[1], "role": row[2], "organization_name": row[3]}
+
+
+@app.get("/team/sellers", tags=["team"])
+async def list_sellers(user=Depends(_writer)):
+    async with _pool().connection() as connection:
+        rows = await (await connection.execute(
+            """SELECT u.id, u.username, u.display_name, u.is_active, u.created_at
+               FROM organization_members om
+               JOIN users u ON u.id=om.user_id
+               WHERE om.organization_id=%s AND om.role='cashier'
+               ORDER BY u.display_name""",
+            (user["organization_id"],))).fetchall()
+    return [{"id": str(row[0]), "username": row[1] or "", "display_name": row[2],
+             "is_active": bool(row[3]), "created_at": row[4].isoformat()} for row in rows]
+
+
+@app.post("/team/sellers", status_code=status.HTTP_201_CREATED, tags=["team"])
+async def create_seller(body: SellerCreate, user=Depends(_writer)):
+    username = body.username.strip().lower()
+    email = username + "@seller.batipro.local"
+    pool = _pool()
+    try:
+        async with pool.connection() as connection:
+            async with connection.transaction():
+                created = await connection.execute(
+                    """INSERT INTO users (email, username, password_hash, display_name)
+                       VALUES (%s,%s,%s,%s) RETURNING id""",
+                    (email, username, _password_hash(body.password), body.display_name.strip()))
+                seller_id = (await created.fetchone())[0]
+                await connection.execute(
+                    """INSERT INTO organization_members (organization_id,user_id,role)
+                       VALUES (%s,%s,'cashier')""",
+                    (user["organization_id"], seller_id))
+                await connection.execute(
+                    """INSERT INTO audit_logs (organization_id,user_id,action,entity_type,entity_id,metadata)
+                       VALUES (%s,%s,'seller.created','user',%s,%s::jsonb)""",
+                    (user["organization_id"], user["user_id"], seller_id,
+                     json.dumps({"username": username, "display_name": body.display_name.strip()})))
+    except Exception as exc:
+        if "unique" in str(exc).lower():
+            raise HTTPException(status_code=409, detail="اسم المستخدم مستعمل من قبل") from exc
+        raise
+    return {"id": str(seller_id), "username": username,
+            "display_name": body.display_name.strip(), "role": "cashier", "is_active": True}
+
+
+@app.patch("/team/sellers/{seller_id}/deactivate", tags=["team"])
+async def deactivate_seller(seller_id: UUID, user=Depends(_writer)):
+    async with _pool().connection() as connection:
+        async with connection.transaction():
+            result = await connection.execute(
+                """UPDATE users u SET is_active=FALSE
+                   FROM organization_members om
+                   WHERE u.id=%s AND om.user_id=u.id
+                     AND om.organization_id=%s AND om.role='cashier'
+                   RETURNING u.id""",
+                (seller_id, user["organization_id"]))
+            row = await result.fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Seller account not found")
+            await connection.execute(
+                """INSERT INTO audit_logs (organization_id,user_id,action,entity_type,entity_id,metadata)
+                   VALUES (%s,%s,'seller.deactivated','user',%s,'{}'::jsonb)""",
+                (user["organization_id"], user["user_id"], seller_id))
+    return {"id": str(seller_id), "is_active": False}
 
 
 @app.get("/warehouses", tags=["warehouses"])
@@ -534,8 +612,42 @@ async def create_purchase(body: PurchaseCreate, user=Depends(_writer)):
             "due":str(total-body.paid)}
 
 
+@app.get("/sales", tags=["sales"])
+async def list_sales(limit: int = Query(default=500, ge=1, le=1000), user=Depends(_current_user)):
+    async with _pool().connection() as connection:
+        rows = await (await connection.execute(
+            """SELECT si.id,si.invoice_number,si.invoice_date,si.subtotal,si.discount,
+                      si.total,si.paid,COALESCE(c.name,NULLIF(trim(split_part(split_part(si.notes,'الزبون: ',2),' |',1)),''),'زبون نقدي'),
+                      COALESCE(u.display_name,''),
+                      COALESCE(si.notes,'')
+               FROM sales_invoices si
+               LEFT JOIN customers c ON c.id=si.customer_id
+               LEFT JOIN users u ON u.id=si.created_by
+               WHERE si.organization_id=%s AND si.status='posted'
+                 AND (%s <> 'cashier' OR si.created_by=%s)
+               ORDER BY si.invoice_date DESC LIMIT %s""",
+            (user["organization_id"],user["role"],user["user_id"],limit))).fetchall()
+        result = []
+        for row in rows:
+            lines = await (await connection.execute(
+                """SELECT sl.product_id,p.name,sl.quantity,sl.unit,sl.unit_price,sl.line_total
+                   FROM sales_lines sl JOIN products p ON p.id=sl.product_id
+                   WHERE sl.organization_id=%s AND sl.sales_invoice_id=%s
+                   ORDER BY sl.created_at,sl.id""",
+                (user["organization_id"],row[0]))).fetchall()
+            result.append({
+                "id":str(row[0]),"invoice_number":row[1],"date":row[2].isoformat(),
+                "subtotal":str(row[3]),"discount":str(row[4]),"total":str(row[5]),
+                "paid":str(row[6]),"client":row[7],"seller":row[8],"notes":row[9],
+                "items":[{"product_id":str(line[0]),"name":line[1],"quantity":str(line[2]),
+                          "unit":line[3],"unit_price":str(line[4]),"line_total":str(line[5])}
+                         for line in lines],
+            })
+    return result
+
+
 @app.post("/sales", status_code=status.HTTP_201_CREATED, tags=["sales"])
-async def create_sale(body: SaleCreate, user=Depends(_writer)):
+async def create_sale(body: SaleCreate, user=Depends(_sales_writer)):
     for line in body.lines:
         expected_line_total = (line.quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if line.line_total != expected_line_total:
@@ -560,10 +672,10 @@ async def create_sale(body: SaleCreate, user=Depends(_writer)):
                     raise HTTPException(status_code=404, detail="Customer not found")
             invoice_result = await connection.execute(
                 """INSERT INTO sales_invoices
-                   (organization_id,warehouse_id,customer_id,invoice_number,subtotal,discount,total,paid,notes)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   (organization_id,warehouse_id,customer_id,invoice_number,subtotal,discount,total,paid,notes,created_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (user["organization_id"],body.warehouse_id,body.customer_id,body.invoice_number,
-                 subtotal,body.discount,total,body.paid,body.notes))
+                 subtotal,body.discount,total,body.paid,body.notes,user["user_id"]))
             invoice_id = (await invoice_result.fetchone())[0]
             for index, line in enumerate(body.lines):
                 product = await (await connection.execute(

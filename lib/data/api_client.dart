@@ -120,6 +120,46 @@ class ApiClient {
     throw const FormatException('صيغة قائمة المنتجات غير صحيحة.');
   }
 
+  Future<List<Map<String, dynamic>>> sellers() async {
+    final response = await http
+        .get(_uri('/team/sellers'), headers: _headers)
+        .timeout(const Duration(seconds: 20));
+    final data = _decode(response)['data'];
+    if (data is List) {
+      return data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }
+    throw const FormatException('صيغة قائمة البائعين غير صحيحة.');
+  }
+
+  Future<Map<String, dynamic>> createSeller({
+    required String username,
+    required String displayName,
+    required String password,
+  }) async {
+    final response = await http
+        .post(
+          _uri('/team/sellers'),
+          headers: _headers,
+          body: jsonEncode({
+            'username': username.trim(),
+            'display_name': displayName.trim(),
+            'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _decode(response);
+  }
+
+  Future<void> deactivateSeller(String sellerId) async {
+    final response = await http
+        .patch(
+          _uri('/team/sellers/$sellerId/deactivate'),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
   Future<Map<String, dynamic>> createProduct(Map<String, dynamic> product) async {
     final response = await http
         .post(_uri('/products'), headers: _headers, body: jsonEncode(product))
@@ -193,6 +233,18 @@ class ApiClient {
         .post(_uri('/purchases'), headers: _headers, body: jsonEncode(invoice))
         .timeout(const Duration(seconds: 30));
     return _decode(response);
+  }
+
+  Future<List<Map<String, dynamic>>> sales({int limit = 500}) async {
+    final response = await http
+        .get(_uri('/sales').replace(queryParameters: {'limit': '$limit'}),
+            headers: _headers)
+        .timeout(const Duration(seconds: 30));
+    final data = _decode(response)['data'];
+    if (data is List) {
+      return data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }
+    throw const FormatException('صيغة سجل المبيعات غير صحيحة.');
   }
 
   Future<Map<String, dynamic>> createSale(Map<String, dynamic> invoice) async {

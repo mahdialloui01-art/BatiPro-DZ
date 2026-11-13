@@ -9,6 +9,7 @@ import '../data/backup_service.dart';
 import '../data/api_client.dart';
 import '../data/initial_sync_service.dart';
 import '../data/cloud_sync_service.dart';
+import 'seller_accounts_screen.dart';
 import '../app/app_theme.dart';
 import '../widgets/pos_peripherals_panel.dart';
 
@@ -1457,7 +1458,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           label: const Text('حفظ عنوان الخادم'),
         )),
         const SizedBox(height: 12),
-        _field(_apiEmail, 'البريد الإلكتروني', icon: Icons.email_outlined),
+        _field(_apiEmail, 'اسم المستخدم أو البريد الإلكتروني', icon: Icons.email_outlined),
         _field(_apiPassword, 'كلمة مرور حساب BatiPro', icon: Icons.lock_outline),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: _apiBusy ? null : _loginApi,
@@ -1484,6 +1485,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             Expanded(child: Text(_apiStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink))),
           ]),
         ),
+        if (ApiClient.instance.isAuthenticated) ...[
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: _apiBusy ? null : () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SellerAccountsScreen()),
+            ),
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('إدارة حسابات البيع وإضافة بائعين'),
+          )),
+        ],
         const SizedBox(height: 12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: (_syncBusy || !ApiClient.instance.isAuthenticated) ? null : _runInitialSync,
@@ -1499,12 +1510,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           icon: _syncBusy
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.sync),
-          label: const Text('مزامنة التغييرات بين الأجهزة الآن'),
+          label: const Text('مزامنة التغييرات الآن'),
         )),
         const SizedBox(height: 8),
         Text(_syncStatus, style: const TextStyle(fontSize: 11, color: BatiProTheme.ink, height: 1.5)),
         const SizedBox(height: 5),
-        const Text('الاستيراد الأولي ينقل السجل القديم مرة واحدة. زر المزامنة يرسل التعديلات المحلية ويستقبل تغييرات الأجهزة الأخرى. عند تعديل نفس القسم على جهازين، تتوقف المزامنة وتبلغك بالتعارض بدلاً من الكتابة فوق البيانات بصمت.',
+        const Text('بعد الاستيراد الأولي، يحاول البرنامج مزامنة تغييرات SQLite تلقائياً كل 20 ثانية وعند الرجوع للتطبيق. إذا انقطع الاتصال تبقى التغييرات محلياً وتُعاد المحاولة؛ ويمكنك تشغيل المزامنة يدوياً. عند تعديل نفس السجل من جهازين يظهر تعارض للحل بدلاً من الكتابة فوق البيانات بصمت.',
             style: TextStyle(fontSize: 10, color: BatiProTheme.muted, height: 1.5)),
         const SizedBox(height: 12),
         const Text('بيانات الدخول محفوظة في مخزن Windows الآمن. يلزم نشر API وضبط مفاتيح الأمان على الخادم قبل تفعيل الاتصال.',
