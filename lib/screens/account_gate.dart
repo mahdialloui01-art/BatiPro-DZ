@@ -6,6 +6,7 @@ import '../app/app_theme.dart';
 import '../app/app_language.dart';
 import '../app/batipro_app.dart';
 import 'sales_screen.dart';
+import '../data/api_client.dart';
 
 /// Keeps manager and seller sessions separate.
 class AccountGate extends StatefulWidget {
@@ -25,6 +26,9 @@ class _AccountGateState extends State<AccountGate> {
   final _sellerPin = TextEditingController();
   final _confirmManager = TextEditingController();
   final _confirmSeller = TextEditingController();
+  final _sellerUsername = TextEditingController();
+  final _sellerPassword = TextEditingController();
+  String _sellerName = 'البائع';
 
   bool _loading = true;
   bool _setupRequired = false;
@@ -46,6 +50,8 @@ class _AccountGateState extends State<AccountGate> {
     _sellerPin.dispose();
     _confirmManager.dispose();
     _confirmSeller.dispose();
+    _sellerUsername.dispose();
+    _sellerPassword.dispose();
     super.dispose();
   }
 
@@ -114,22 +120,36 @@ class _AccountGateState extends State<AccountGate> {
 
   Future<bool> _login() async {
     if (_role == null || _busy) return false;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() { _busy = true; _error = null; });
     var success = false;
     try {
-      final key = _role == 'manager' ? _managerPinKey : _sellerPinKey;
-      final saved = await _storage.read(key: key);
-      if (!mounted) return false;
-      if (saved == null || _pin.text != saved) {
-        setState(() => _error = 'الرمز السري غير صحيح.');
-      } else {
+      if (_role == 'seller') {
+        final loginName = _sellerUsername.text.trim();
+        if (loginName.isEmpty || _sellerPassword.text.isEmpty) {
+          throw StateError('أدخل اسم المستخدم والرقم السري للبائع.');
+        }
+        if (ApiClient.instance.baseUrl == null) {
+          throw StateError('لا يوجد عنوان خادم. اطلب من المسؤول إعداد الخادم أولاً.');
+        }
+        await ApiClient.instance.login(email: loginName, password: _sellerPassword.text);
+        final profile = await ApiClient.instance.me();
+        if (profile['role']?.toString() != 'cashier') {
+          await ApiClient.instance.logout();
+          throw StateError('هذا الحساب ليس حساب بائع. اختر حساب المسؤول.');
+        }
+        _sellerName = profile['display_name']?.toString() ?? loginName;
         success = true;
+      } else {
+        final saved = await _storage.read(key: _managerPinKey);
+        if (!mounted) return false;
+        if (saved == null || _pin.text != saved) {
+          setState(() => _error = 'الرمز السري غير صحيح.');
+        } else {
+          success = true;
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _error = 'تعذر التحقق من الرمز السري.');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -137,6 +157,7 @@ class _AccountGateState extends State<AccountGate> {
   }
 
   void _logout() {
+    if (_authenticatedRole == 'seller') ApiClient.instance.logout();
     setState(() {
       _authenticatedRole = null;
       _role = null;
@@ -195,7 +216,7 @@ class _AccountGateState extends State<AccountGate> {
                   ],
                 ),
               ),
-              const Expanded(child: SalesScreen(sellerName: 'البائع')),
+              Expanded(child: SalesScreen(sellerName: _sellerName, sharedMode: true)),
             ],
           ),
         ),
@@ -312,18 +333,40 @@ class _AccountGateState extends State<AccountGate> {
                           french ? 'Écran de vente uniquement' : 'واجهة البيع فقط'),
                       if (_role != null) ...[
                         const SizedBox(height: 16),
-                        _pinField(_pin, french ? 'Code secret' : 'الكود السري'),
+                        if (_role == 'seller') ...[
+                          TextField(
+                            controller: _sellerUsername,
+                            autocorrect: false,
+                            decoration: InputDecoration(
+                              labelText: french ? 'Nom d’utilisateur vendeur' : 'اسم مستخدم البائع',
+                              prefixIcon: const Icon(Icons.person_outline),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _sellerPassword,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText: french ? 'Mot de passe' : 'الرقم السري',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                            ),
+                            onSubmitted: (_) async {
+                              final authenticated = await _login();
+                              if (!mounted || !authenticated) return;
+                              setState(() => _authenticatedRole = 'seller');
+                            },
+                          ),
+                        ] else
+                          _pinField(_pin, french ? 'Code secret du responsable' : 'كود المسؤول'),
                         if (_error != null) _errorText(),
                         const SizedBox(height: 12),
                         FilledButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () async {
-                                  final selectedRole = _role!;
-                                  final authenticated = await _login();
-                                  if (!mounted || !authenticated) return;
-                                  setState(() => _authenticatedRole = selectedRole);
-                                },
+                          onPressed: _busy ? null : () async {
+                            final selectedRole = _role!;
+                            final authenticated = await _login();
+                            if (!mounted || !authenticated) return;
+                            setState(() => _authenticatedRole = selectedRole);
+                          },
                           icon: const Icon(Icons.lock_open_rounded),
                           label: Text(french ? 'Entrer' : 'دخول'),
                         ),
@@ -345,6 +388,7 @@ class _AccountGateState extends State<AccountGate> {
       onTap: () => setState(() {
         _role = role;
         _pin.clear();
+        _sellerPassword.clear();
         _error = null;
       }),
       borderRadius: BorderRadius.circular(14),
