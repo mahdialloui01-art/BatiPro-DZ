@@ -355,6 +355,21 @@ class CloudSyncService {
         }
         final localMatchesBase = known['deleted'] == true
             ? localValue == null : localValue == known['value'];
+
+        // A newer local edit may have happened after this device queued and
+        // uploaded an older snapshot. Advance the server revision without
+        // replacing that newer SQLite value; the next pass uploads it.
+        final localDiffersFromOwnEvent = deleted
+            ? localValue != null
+            : localValue != value;
+        if (change['device_id'] == deviceId && !localMatchesBase &&
+            localDiffersFromOwnEvent) {
+          documents[key] = {'revision': revision, 'value': value, 'deleted': deleted};
+          processedCursor = (change['event_id'] as num).toInt();
+          pulled++;
+          continue;
+        }
+
         if (change['device_id'] != deviceId && !localMatchesBase) {
           final merged = _mergeRecordArrays(
             known['value'] as String?,
