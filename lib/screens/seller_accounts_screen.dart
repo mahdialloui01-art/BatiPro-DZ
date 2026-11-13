@@ -94,7 +94,7 @@ class _SellerAccountsScreenState extends State<SellerAccountsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(t('تعطيل حساب البائع؟', 'Désactiver ce compte ?')),
-        content: Text(t('لن يستطيع \${seller['display_name']} الدخول بعد التعطيل، وتبقى فواتيره محفوظة.', 'Ce vendeur ne pourra plus se connecter. Ses factures seront conservées.')),
+        content: Text(t('لن يستطيع ${seller['display_name']} الدخول بعد التعطيل، وتبقى فواتيره محفوظة.', 'Ce vendeur ne pourra plus se connecter. Ses factures seront conservées.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('إلغاء', 'Annuler'))),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('تعطيل', 'Désactiver'))),
@@ -133,14 +133,14 @@ class _SellerAccountsScreenState extends State<SellerAccountsScreen> {
           const SizedBox(height: 14),
           Row(children: [
             Expanded(child: Text(t('الحسابات المسجلة', 'Comptes enregistrés'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: BatiProTheme.ink))),
-            Text('\${_sellers.where((s) => s['is_active'] == true).length}'),
+            Text('${_sellers.where((s) => s['is_active'] == true).length}'),
           ]),
           const SizedBox(height: 8),
           if (_sellers.isEmpty) Card(child: Padding(padding: const EdgeInsets.all(24), child: Center(child: Text(t('لم تضف أي حساب بيع بعد.', 'Aucun vendeur ajouté.'))))),
           for (final seller in _sellers) Card(child: ListTile(
             leading: CircleAvatar(backgroundColor: BatiProTheme.gold.withValues(alpha: .2), child: const Icon(Icons.point_of_sale, color: BatiProTheme.ink)),
             title: Text(seller['display_name']?.toString() ?? ''),
-            subtitle: Text('@\${seller['username'] ?? ''} • \${seller['is_active'] == true ? t('نشط', 'Actif') : t('معطّل', 'Désactivé')}'),
+            subtitle: Text('@${seller['username'] ?? ''} • ${seller['is_active'] == true ? t('نشط', 'Actif') : t('معطّل', 'Désactivé')}'),
             trailing: seller['is_active'] == true
               ? IconButton(tooltip: t('تعطيل الحساب', 'Désactiver'), onPressed: _busy ? null : () => _deactivate(seller), icon: const Icon(Icons.block_rounded, color: Colors.redAccent))
               : const Icon(Icons.lock_outline, color: BatiProTheme.muted),
