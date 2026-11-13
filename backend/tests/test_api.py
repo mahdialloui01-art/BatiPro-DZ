@@ -172,7 +172,7 @@ def test_purchase_and_sale_post_atomically_update_stock(monkeypatch):
         history = client.get("/sales", headers=headers)
         assert history.status_code == 200, history.text
         assert any(row["id"] == sale.json()["id"] for row in history.json())
-        assert history.json()[0]["client"] == "Test Customer"
+        assert history.json()[0]["client"] == "زبون الاختبار"
 
         stock = client.get("/stock", headers=headers)
         matching = [row for row in stock.json() if row["product_id"] == product_id]
