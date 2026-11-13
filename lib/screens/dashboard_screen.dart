@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart' hide Text;
 import '../app/localized_text.dart';
 import '../data/app_storage.dart';
+import '../data/api_client.dart';
 import '../app/app_theme.dart';
 import '../app/app_language.dart';
 import '../widgets/section_header.dart';
@@ -56,9 +57,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     final prefs = await AppStorage.getInstance();
-    final sales = _readList(prefs.getString('batipro_sales_v1'));
+    var sales = _readList(prefs.getString('batipro_sales_v1'));
     final purchases = _readList(prefs.getString('batipro_purchases_v1'));
-    final stock = _readList(prefs.getString('batipro_inventory_v1'));
+    var stock = _readList(prefs.getString('batipro_inventory_v1'));
+
+    // When the manager is signed in to the shared server, use organization-wide
+    // sales and stock instead of this computer's local cache.
+    if (ApiClient.instance.isAuthenticated) {
+      try {
+        final profile = await ApiClient.instance.me();
+        final role = profile['role']?.toString();
+        if (role == 'owner' || role == 'admin' || role == 'manager') {
+          final results = await Future.wait([
+            ApiClient.instance.sales(limit: 1000),
+            ApiClient.instance.stock(),
+            ApiClient.instance.products(),
+          ]);
+          final sharedSales = results[0];
+          final sharedStock = results[1];
+          final sharedProducts = results[2];
+          final productsById = <String, Map<String, dynamic>>{
+            for (final product in sharedProducts)
+              product['id'].toString(): product,
+          };
+          sales = sharedSales.map((row) => <String, dynamic>{
+            'date': row['date'],
+            'total': double.tryParse(row['total']?.toString() ?? '') ?? 0,
+            'paid': double.tryParse(row['paid']?.toString() ?? '') ?? 0,
+            'client': row['client'] ?? '',
+            'seller': row['seller'] ?? '',
+            'invoiceNumber': row['invoice_number'] ?? '',
+          }).toList();
+          stock = sharedStock.map((row) {
+            final product = productsById[row['product_id']?.toString()] ?? {};
+            return <String, dynamic>{
+              'name': row['name'] ?? product['name'] ?? '',
+              'quantity': double.tryParse(row['quantity']?.toString() ?? '') ?? 0,
+              'minimum': double.tryParse(product['minimum_stock']?.toString() ?? '') ?? 0,
+              'purchasePrice': (double.tryParse(product['purchase_price']?.toString() ?? '') ?? 0) * 100,
+            };
+          }).toList();
+        }
+      } catch (_) {
+        // Keep the local dashboard available if the shared server is offline.
+      }
+    }
     final now = DateTime.now();
     bool sameDay(DateTime a, DateTime b) =>
         a.year == b.year && a.month == b.month && a.day == b.day;
@@ -170,7 +213,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 22),
                   _RecentSales(items: _recentSales),
                   const SizedBox(height: 20),
-                  const Text('BatiPro DZ • المؤشرات محسوبة من البيانات المحفوظة على الجهاز', style: TextStyle(color: BatiProTheme.muted, fontSize: 10)),
+                  const Text('BatiPro DZ • البيانات المشتركة عند اتصال المسؤول بالخادم، وإلا البيانات المحلية', style: TextStyle(color: BatiProTheme.muted, fontSize: 10)),
                 ]),
               );
             }),
