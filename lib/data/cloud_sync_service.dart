@@ -208,7 +208,8 @@ class CloudSyncService {
         pulled++;
       }
       cursor = (snapshot['cursor'] as num?)?.toInt() ?? 0;
-      await _saveMetadata(storage, cursor, documents, keepLocalUntil: keepLocalUntil);
+      await _saveMetadata(storage, cursor, documents,
+          keepLocalUntil: keepLocalUntil, pendingMutations: pendingMutations);
     }
 
     bool eligible(String key) => key.startsWith('batipro_') &&
@@ -377,7 +378,9 @@ class CloudSyncService {
             });
           }
           metadata['conflicts'] = pending;
-          await _saveMetadata(storage, processedCursor, documents, keepLocalUntil: keepLocalUntil, conflicts: pending);
+          await _saveMetadata(storage, processedCursor, documents,
+              keepLocalUntil: keepLocalUntil, conflicts: pending,
+              pendingMutations: pendingMutations);
           throw StateError('تعارض أثناء استقبال "$key". اختر النسخة التي تريد الاحتفاظ بها.');
         }
         if (deleted) {
