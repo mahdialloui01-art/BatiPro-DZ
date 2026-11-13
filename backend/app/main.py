@@ -638,10 +638,10 @@ async def create_sale(body: SaleCreate, user=Depends(_sales_writer)):
                     raise HTTPException(status_code=404, detail="Customer not found")
             invoice_result = await connection.execute(
                 """INSERT INTO sales_invoices
-                   (organization_id,warehouse_id,customer_id,invoice_number,subtotal,discount,total,paid,notes)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   (organization_id,warehouse_id,customer_id,invoice_number,subtotal,discount,total,paid,notes,created_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (user["organization_id"],body.warehouse_id,body.customer_id,body.invoice_number,
-                 subtotal,body.discount,total,body.paid,body.notes))
+                 subtotal,body.discount,total,body.paid,body.notes,user["user_id"]))
             invoice_id = (await invoice_result.fetchone())[0]
             for index, line in enumerate(body.lines):
                 product = await (await connection.execute(
